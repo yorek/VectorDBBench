@@ -54,6 +54,7 @@ all = [
     "redis",
     "chromadb",
     "psycopg2",
+    "pyodbc"
 ]
 
 qdrant = [ "qdrant-client" ]
@@ -64,6 +65,7 @@ pgvector = [ "pgvector", "sqlalchemy" ]
 pgvecto_rs = [ "psycopg2" ]
 redis = [ "redis" ]
 chromadb = [ "chromadb" ]
+mssql = [ "pyodbc" ]
 
 [project.urls]
 "repository" = "https://github.com/zilliztech/VectorDBBench"
@@ -72,3 +74,4 @@ chromadb = [ "chromadb" ]
 init_bench = "vectordb_bench.__main__:main"
 
 [tool.setuptools_scm]
+

@@ -1,4 +1,4 @@
-"""Wrapper around the Azure SQL"""
+"""Wrapper around MSSQL"""
 
 import logging
 from contextlib import contextmanager
