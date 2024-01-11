@@ -41,41 +41,41 @@ class MSSQL(VectorDB):
         """)
         cnxn.commit()
         
-        # if drop_old:
-        #     log.info(f"Dropping existing tables...")
-        #     cursor.execute(f""" 
-        #         drop table if exists [{self.schema_name}].[{self.table_name}]
-        #     """)
-        #     cursor.execute(f""" 
-        #         drop table if exists [{self.schema_name}].[{self.table_name}_index]
-        #     """)
-        #     cnxn.commit()
+        if drop_old:
+            log.info(f"Dropping existing tables...")
+            cursor.execute(f""" 
+                drop table if exists [{self.schema_name}].[{self.table_name}]
+            """)
+            cursor.execute(f""" 
+                drop table if exists [{self.schema_name}].[{self.table_name}_index]
+            """)
+            cnxn.commit()
 
-        #     log.info(f"Creating vector table...")
-        #     cursor.execute(f""" 
-        #         create table [{self.schema_name}].[{self.table_name}] (
-        #             id int primary key, 
-        #             vector nvarchar(max) check(isjson(vector)=1)
-        #         )
-        #     """)
-        #     cnxn.commit()
+            log.info(f"Creating vector table...")
+            cursor.execute(f""" 
+                create table [{self.schema_name}].[{self.table_name}] (
+                    id int primary key, 
+                    vector nvarchar(max) check(isjson(vector)=1)
+                )
+            """)
+            cnxn.commit()
 
-        #     log.info(f"Creating vector values (index) table...")
-        #     cursor.execute(f""" 
-        #         create table [{self.schema_name}].[{self.table_name}_index]          
-        #         (
-        #             vector_id int not null, 
-        #             vector_value_id smallint not null,
-        #             vector_value float not null
-        #         )
-        #     """)
-        #     cnxn.commit()
+            log.info(f"Creating vector values (index) table...")
+            cursor.execute(f""" 
+                create table [{self.schema_name}].[{self.table_name}_index]          
+                (
+                    vector_id int not null, 
+                    vector_value_id smallint not null,
+                    vector_value float not null
+                )
+            """)
+            cnxn.commit()
 
-        #     log.info(f"Creating columnstore index...")
-        #     cursor.execute(f""" 
-        #         create clustered columnstore index cci_{self.table_name} on [{self.schema_name}].[{self.table_name}_index]
-        #     """)
-        #     cnxn.commit()
+            log.info(f"Creating columnstore index...")
+            cursor.execute(f""" 
+                create clustered columnstore index cci_{self.table_name} on [{self.schema_name}].[{self.table_name}_index]
+            """)
+            cnxn.commit()
 
         cursor.close()
         cnxn.close()
@@ -108,13 +108,13 @@ class MSSQL(VectorDB):
     ) -> (int, Exception):        
         try:            
             log.info(f'Loading batch of {len(metadata)} vectors...')
-            return len(metadata), None
+            #return len(metadata), None
         
-            log.info(f'Truncating staging table...')
-            cursor = self.cnxn.cursor()
-            cursor.fast_executemany = True            
-            cursor.execute(f"truncate table [{self.schema_name}].[{self.table_name}]")
-            cursor.commit()
+
+            # log.info(f'Truncating staging table...')
+            # cursor.fast_executemany = True            
+            # cursor.execute(f"truncate table [{self.schema_name}].[{self.table_name}]")
+            # cursor.commit()
 
             log.info(f'Generating param list...')
             params = [(metadata[i], str(embeddings[i])) for i in range(len(metadata))]
@@ -123,23 +123,25 @@ class MSSQL(VectorDB):
             #     params.append((metadata[i], str(embeddings[i])))
 
             log.info(f'Loading staging table...')
+            cursor = self.cnxn.cursor()
+            cursor.fast_executemany = True   
             cursor.executemany(f"insert into [{self.schema_name}].[{self.table_name}] (id, vector) values (?, ?)", params)
             cursor.commit()
 
-            log.info(f'Loading vector index table...')
-            cursor.execute(f"""
-                insert into 
-                    [{self.schema_name}].[{self.table_name}_index]
-                select 
-                    v.id as [vector_id],
-                    cast([key] as int) as [vector_value_id],
-                    cast([value] as float) as [vector_value]        
-                from 
-                    [{self.schema_name}].[{self.table_name}] v
-                cross apply
-                    openjson([vector]) 
-            """)            
-            cursor.commit()
+            # log.info(f'Loading vector index table...')
+            # cursor.execute(f"""
+            #     insert into 
+            #         [{self.schema_name}].[{self.table_name}_index]
+            #     select 
+            #         v.id as [vector_id],
+            #         cast([key] as int) as [vector_value_id],
+            #         cast([value] as float) as [vector_value]        
+            #     from 
+            #         [{self.schema_name}].[{self.table_name}] v
+            #     cross apply
+            #         openjson([vector]) 
+            # """)            
+            # cursor.commit()
 
             return len(metadata), None
         except Exception as e:
