@@ -1,7 +1,7 @@
 from pydantic import BaseModel, SecretStr
 from ..api import DBConfig, DBCaseConfig, MetricType
 
-MSSQL_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s;Connect Timeout=30;"
+MSSQL_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s;Connect Timeout=30;TrustServerCertificate=Yes"
 
 class MSSQLConfig(DBConfig):
     server: str

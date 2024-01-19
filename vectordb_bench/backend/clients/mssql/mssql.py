@@ -30,6 +30,7 @@ class MSSQL(VectorDB):
         log.info("db_case_config: " + str(db_case_config))
 
         log.info(f"Connecting to MSSQL...")
+        log.info(self.db_config['connection_string'])
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
@@ -45,38 +46,18 @@ class MSSQL(VectorDB):
             log.info(f"Dropping existing tables...")
             cursor.execute(f""" 
                 drop table if exists [{self.schema_name}].[{self.table_name}]
-            """)
-            cursor.execute(f""" 
-                drop table if exists [{self.schema_name}].[{self.table_name}_index]
-            """)
+            """)           
             cnxn.commit()
 
             log.info(f"Creating vector table...")
             cursor.execute(f""" 
                 create table [{self.schema_name}].[{self.table_name}] (
-                    id int primary key, 
-                    vector nvarchar(max) check(isjson(vector)=1)
+                    id int not null primary key nonclustered,
+                    [vector] varbinary(8000) not null
                 )
             """)
             cnxn.commit()
-
-            log.info(f"Creating vector values (index) table...")
-            cursor.execute(f""" 
-                create table [{self.schema_name}].[{self.table_name}_index]          
-                (
-                    vector_id int not null, 
-                    vector_value_id smallint not null,
-                    vector_value float not null
-                )
-            """)
-            cnxn.commit()
-
-            log.info(f"Creating columnstore index...")
-            cursor.execute(f""" 
-                create clustered columnstore index cci_{self.table_name} on [{self.schema_name}].[{self.table_name}_index]
-            """)
-            cnxn.commit()
-
+        
         cursor.close()
         cnxn.close()
             
@@ -110,38 +91,14 @@ class MSSQL(VectorDB):
             log.info(f'Loading batch of {len(metadata)} vectors...')
             #return len(metadata), None
         
-
-            # log.info(f'Truncating staging table...')
-            # cursor.fast_executemany = True            
-            # cursor.execute(f"truncate table [{self.schema_name}].[{self.table_name}]")
-            # cursor.commit()
-
             log.info(f'Generating param list...')
             params = [(metadata[i], str(embeddings[i])) for i in range(len(metadata))]
-            # params = list()
-            # for i in range(0, len(metadata)):                
-            #     params.append((metadata[i], str(embeddings[i])))
 
-            log.info(f'Loading staging table...')
+            log.info(f'Loading table...')
             cursor = self.cnxn.cursor()
             cursor.fast_executemany = True   
-            cursor.executemany(f"insert into [{self.schema_name}].[{self.table_name}] (id, vector) values (?, ?)", params)
-            cursor.commit()
-
-            # log.info(f'Loading vector index table...')
-            # cursor.execute(f"""
-            #     insert into 
-            #         [{self.schema_name}].[{self.table_name}_index]
-            #     select 
-            #         v.id as [vector_id],
-            #         cast([key] as int) as [vector_value_id],
-            #         cast([value] as float) as [vector_value]        
-            #     from 
-            #         [{self.schema_name}].[{self.table_name}] v
-            #     cross apply
-            #         openjson([vector]) 
-            # """)            
-            # cursor.commit()
+            cursor.executemany(f"insert into [{self.schema_name}].[{self.table_name}] (id, [vector]) values (?, vector(cast(? as varchar(max))))", params)
+            cursor.commit()           
 
             return len(metadata), None
         except Exception as e:
@@ -158,26 +115,12 @@ class MSSQL(VectorDB):
     ) -> list[int]:        
         log.info(f'Query {k} {filters} {timeout}...')
         cursor = self.cnxn.cursor()
-        cursor.execute(f"""
-            with cteVector as
-            (
-                select                 
-                    cast([key] as int) as [vector_value_id],
-                    cast([value] as float) as [vector_value]        
-                from 
-                    (values (?)) v(vector)
-                cross apply
-                    openjson([vector]) 
-            )
+        cursor.execute(f"""            
             select top({k})
-                v2.vector_id,         
-                sum(v1.[vector_value] * v2.[vector_value]) as cosine_similarity
-            from 
-                cteVector v1
-            inner join 
-                [{self.schema_name}].[{self.table_name}_index] v2 on v1.vector_value_id = v2.vector_value_id
-            group by
-                v2.vector_id
+                id,         
+                vector_distance('cosine', [vector], vector(cast(? as varchar(max)))) as cosine_similarity
+            from
+                [{self.schema_name}].[{self.table_name}] v
             order by
                 cosine_similarity desc
             """, str(query))
