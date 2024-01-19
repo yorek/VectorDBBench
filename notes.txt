@@ -1,0 +1,29 @@
+create login benchmark with password = 'B3nch_mark';
+create user benchmark for login benchmark;
+alter role db_owner add member benchmark;
+
+
+---
+
+to connect to SQL Server from WSL2 get the hostname (cannot use "localhost")
+
+echo  $(hostname).local
+
+---
+
+LAPTOP-DM-2.local
+testvectors
+
+
+--
+
+install odbc if in linux
+
+python3.11 -m venv .venv
+
+. ./.venv/bin/activate
+
+pip install -e '.[test]'
+
+pip install -e '.[sql]'
+
