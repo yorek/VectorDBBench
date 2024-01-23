@@ -125,7 +125,7 @@ class MSSQL(VectorDB):
                 cosine_similarity desc
             """, str(query))
         rows = cursor.fetchall()
-        res = [row.vector_id for row in rows]
+        res = [row.id for row in rows]
         return list(res)
         
         
