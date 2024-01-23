@@ -96,7 +96,7 @@ class MSSQL(VectorDB):
 
             log.info(f'Loading table...')
             cursor = self.cnxn.cursor()
-            cursor.fast_executemany = True   
+            #cursor.fast_executemany = True   
             cursor.executemany(f"insert into [{self.schema_name}].[{self.table_name}] (id, [vector]) values (?, vector(cast(? as varchar(max))))", params)
             cursor.commit()           
 
