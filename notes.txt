@@ -12,7 +12,7 @@ echo  $(hostname).local
 ---
 
 LAPTOP-DM-2.local
-testvectors
+vectordb
 
 
 --
@@ -23,6 +23,8 @@ install odbc if in linux
 install python 3.11
 
 https://ubuntuhandbook.org/index.php/2022/10/python-3-11-released-how-install-ubuntu/
+
+create a folder
 
 python3.11 -m venv .venv
 
