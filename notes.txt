@@ -20,6 +20,8 @@ vectordb
 
 install odbc if in linux
 
+https://learn.microsoft.com/en-us/sql/connect/odbc/linux-mac/installing-the-microsoft-odbc-driver-for-sql-server
+
 install python 3.11
 
 https://ubuntuhandbook.org/index.php/2022/10/python-3-11-released-how-install-ubuntu/
