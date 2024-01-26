@@ -23,17 +23,17 @@ class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
 
     def parse_metric(self) -> str: 
         if self.metric_type == MetricType.L2:
-            return "vector_l2_ops"
+            return "euclidean"
         elif self.metric_type == MetricType.IP:
-            return "vector_ip_ops"
-        return "vector_cosine_ops"
+            return "dot"
+        return "cosine"
     
     def parse_metric_fun_str(self) -> str: 
         if self.metric_type == MetricType.L2:
-            return "l2_distance"
+            return "euclidean"
         elif self.metric_type == MetricType.IP:
-            return "max_inner_product"
-        return "cosine_distance"
+            return "dot"
+        return "cosine"
 
     def index_param(self) -> dict:
         return {

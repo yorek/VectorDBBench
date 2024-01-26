@@ -156,16 +156,30 @@ class MSSQL(VectorDB):
         filters: dict | None = None,
         timeout: int | None = None,
     ) -> list[int]:        
-        log.info(f'Query top:{k} filters:{filters} timeout:{timeout}...')
+        search_param = self.case_config.search_param()
+        metric_fun = search_param["metric_fun"]
+        log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} timeout:{timeout}...')
         cursor = self.cnxn.cursor()
-        cursor.execute(f"""            
-            select top({k})
-                id                
-            from
-                [{self.schema_name}].[{self.table_name}] v
-            order by
-                vector_distance('cosine', [vector], ?)
-            """, self.array_to_vector(query))
+        if filters:
+            cursor.execute(f"""            
+                select top({k})
+                    id                
+                from
+                    [{self.schema_name}].[{self.table_name}] v
+                where
+                    id > ?
+                order by
+                    vector_distance('{metric_fun}', [vector], ?)
+                """, int(filters.get('id')), self.array_to_vector(query))
+        else:
+            cursor.execute(f"""            
+                select top({k})
+                    id                
+                from
+                    [{self.schema_name}].[{self.table_name}] v
+                order by
+                    vector_distance('{metric_fun}', [vector], ?)
+                """, self.array_to_vector(query))
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return list(res)
