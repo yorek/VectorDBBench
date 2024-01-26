@@ -26,6 +26,11 @@ install python 3.11
 
 https://ubuntuhandbook.org/index.php/2022/10/python-3-11-released-how-install-ubuntu/
 
+instal python3.11 pip
+
+apt install python3.11 python3.11-distutils
+curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
+
 create a folder
 
 python3.11 -m venv .venv
