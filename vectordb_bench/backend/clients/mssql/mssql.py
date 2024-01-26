@@ -7,7 +7,7 @@ from typing import Any
 from ..api import VectorDB, DBCaseConfig
 
 import pyodbc
-import json
+import struct
 
 log = logging.getLogger(__name__) 
 
@@ -30,7 +30,7 @@ class MSSQL(VectorDB):
         log.info("db_case_config: " + str(db_case_config))
 
         log.info(f"Connecting to MSSQL...")
-        log.info(self.db_config['connection_string'])
+        #log.info(self.db_config['connection_string'])
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
@@ -43,21 +43,49 @@ class MSSQL(VectorDB):
         cnxn.commit()
         
         if drop_old:
-            log.info(f"Dropping existing tables...")
+            log.info(f"Dropping existing table...")
             cursor.execute(f""" 
                 drop table if exists [{self.schema_name}].[{self.table_name}]
             """)           
             cnxn.commit()
 
-            log.info(f"Creating vector table...")
-            cursor.execute(f""" 
+        log.info(f"Creating vector table...")
+        cursor.execute(f""" 
+            if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
                     id int not null primary key nonclustered,
                     [vector] varbinary(8000) not null
                 )
-            """)
-            cnxn.commit()
+            end
+        """)
+        cnxn.commit()
         
+        log.info(f"Creating table type...")
+        cursor.execute(f""" 
+            if type_id('dbo.vector_payload') is null begin
+                create type dbo.vector_payload as table
+                (
+                    id int not null,
+                    [vector] varbinary(8000) not null
+                )
+            end
+        """)
+        cursor.commit()
+
+        log.info(f"Creating stored procedure...")
+        cursor.execute(f""" 
+            create or alter procedure dbo.stp_load_vectors
+            @dummy int,
+            @payload dbo.vector_payload readonly
+            as
+            begin
+                set nocount on
+                insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, [vector] from @payload;
+                --insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, vector(cast([vector] as varchar(max))) from @payload;
+            end
+        """)
+        cnxn.commit()
+
         cursor.close()
         cnxn.close()
             
@@ -81,6 +109,21 @@ class MSSQL(VectorDB):
         log.info(f"MSSQL ready to search")
         pass
 
+    def array_to_vector(self, a:list[float]) -> bytearray:
+        b = bytearray()
+        b.append(169)
+        b.append(170)
+
+        b += bytearray(struct.pack("i", len(a)))
+
+        b.append(0)
+        b.append(0)
+
+        for i in range(len(a)):
+            b += bytearray(struct.pack("f", a[i]))
+
+        return b
+    
     def insert_embeddings(
         self,
         embeddings: list[list[float]],
@@ -92,12 +135,12 @@ class MSSQL(VectorDB):
             #return len(metadata), None
         
             log.info(f'Generating param list...')
-            params = [(metadata[i], str(embeddings[i])) for i in range(len(metadata))]
+            params = [(metadata[i], self.array_to_vector(embeddings[i])) for i in range(len(metadata))]
 
             log.info(f'Loading table...')
             cursor = self.cnxn.cursor()
-            #cursor.fast_executemany = True   
-            cursor.executemany(f"insert into [{self.schema_name}].[{self.table_name}] (id, [vector]) values (?, vector(cast(? as varchar(max))))", params)
+            #cursor.fast_executemany = True               
+            cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))
             cursor.commit()           
 
             return len(metadata), None
@@ -113,17 +156,16 @@ class MSSQL(VectorDB):
         filters: dict | None = None,
         timeout: int | None = None,
     ) -> list[int]:        
-        log.info(f'Query {k} {filters} {timeout}...')
+        log.info(f'Query top:{k} filters:{filters} timeout:{timeout}...')
         cursor = self.cnxn.cursor()
         cursor.execute(f"""            
             select top({k})
-                id,         
-                vector_distance('cosine', [vector], vector(cast(? as varchar(max)))) as cosine_similarity
+                id                
             from
                 [{self.schema_name}].[{self.table_name}] v
             order by
-                cosine_similarity desc
-            """, str(query))
+                vector_distance('cosine', [vector], ?)
+            """, self.array_to_vector(query))
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return list(res)

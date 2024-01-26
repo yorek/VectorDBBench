@@ -32,3 +32,14 @@ pip install -e '.[test]'
 
 pip install -e '.[sql]'
 
+python -m vectordb_bench
+
+export DROP_OLD=True|False
+export export NUM_PER_BATCH=50000 (default is 5000)
+
+
+
+
+select used_page_count * 8. / 1024. / 1024. as size_in_gb, index_id, row_count, used_page_count from sys.dm_db_partition_stats 
+where object_id = object_id('[benchmark].[vector_768]')
+
