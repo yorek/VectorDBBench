@@ -53,9 +53,9 @@ class MSSQL(VectorDB):
         cursor.execute(f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
-                    id int not null primary key nonclustered,
+                    id int not null primary key clustered,
                     [vector] varbinary(8000) not null
-                )
+                )                
             end
         """)
         cnxn.commit()
@@ -81,7 +81,6 @@ class MSSQL(VectorDB):
             begin
                 set nocount on
                 insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, [vector] from @payload;
-                --insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, vector(cast([vector] as varchar(max))) from @payload;
             end
         """)
         cnxn.commit()
@@ -173,13 +172,8 @@ class MSSQL(VectorDB):
                 """, int(filters.get('id')), self.array_to_vector(query))
         else:
             cursor.execute(f"""            
-                select top({k})
-                    id                
-                from
-                    [{self.schema_name}].[{self.table_name}] v
-                order by
-                    vector_distance('{metric_fun}', [vector], ?)
-                """, self.array_to_vector(query))
+                exec dbo.stp_kmeans_search @p=30, @k=?, @v=?
+                """, k, self.array_to_vector(query))
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return list(res)
