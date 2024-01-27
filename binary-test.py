@@ -12,15 +12,13 @@ connection_string = (
 )
 
 b = bytearray()
-b.append(169)
-b.append(170)
+b.append([169, 170])
 
 items:float = [100, 2000, 1, 0, -1, 0.3, 200]
 
 b += bytearray(struct.pack("i", len(items)))
 
-b.append(0)
-b.append(0)
+b.append([0,0])
 
 for i in range(len(items)):
     b += bytearray(struct.pack("f", items[i]))
@@ -28,5 +26,5 @@ for i in range(len(items)):
 
 cnxn = pyodbc.connect(connection_string, autocommit=True)
 crsr = cnxn.cursor()
-crsr.execute("insert into [benchmark].[vector_768] (id, [vector]) values (1, ?)", b)
+crsr.execute("insert into dbo.test_vector_binary ([vector]) values (?)", b)
 crsr.close()
