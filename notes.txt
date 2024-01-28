@@ -52,3 +52,12 @@ check windows firewall if cannot connect to sql
 select used_page_count * 8. / 1024. / 1024. as size_in_gb, index_id, row_count, used_page_count from sys.dm_db_partition_stats 
 where object_id = object_id('[benchmark].[vector_768]')
 
+----
+
+declare @v varbinary(8000)
+select @v = vector from benchmark.vector_768 where id = 1224
+
+select id from  [$vector].[find_similar$vector_768$vector](@v, 100, 30, 1, 'cosine')
+--exec dbo.stp_kmeans_search @p=30, @k=10, @v=@v
+
+--exec dbo.stp_kmeans_search @p=1000, @k=10, @v=@v

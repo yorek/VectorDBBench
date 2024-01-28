@@ -29,11 +29,7 @@ class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
         return "cosine"
     
     def parse_metric_fun_str(self) -> str: 
-        if self.metric_type == MetricType.L2:
-            return "euclidean"
-        elif self.metric_type == MetricType.IP:
-            return "dot"
-        return "cosine"
+        return self.parse_metric()
 
     def index_param(self) -> dict:
         return {

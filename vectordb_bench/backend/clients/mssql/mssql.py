@@ -157,23 +157,27 @@ class MSSQL(VectorDB):
     ) -> list[int]:        
         search_param = self.case_config.search_param()
         metric_fun = search_param["metric_fun"]
-        log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} timeout:{timeout}...')
+        log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cnxn.cursor()
         if filters:
             cursor.execute(f"""            
-                select top({k})
-                    id                
-                from
-                    [{self.schema_name}].[{self.table_name}] v
-                where
-                    id > ?
-                order by
-                    vector_distance('{metric_fun}', [vector], ?)
-                """, int(filters.get('id')), self.array_to_vector(query))
+                exec [$vector].[stp_filter_similar${self.table_name}$vector] @id=?, @v=?, @k=?, @p=?, @m=?
+                """, 
+                int(filters.get('id')),
+                self.array_to_vector(query), 
+                k,
+                int(search_param["probes"]), 
+                metric_fun
+                )
         else:
             cursor.execute(f"""            
-                exec dbo.stp_kmeans_search @p=30, @k=?, @v=?
-                """, k, self.array_to_vector(query))
+                exec [$vector].[stp_find_similar${self.table_name}$vector] @v=?, @k=?, @p=?, @m=?
+                """, 
+                self.array_to_vector(query), 
+                k,
+                int(search_param["probes"]), 
+                metric_fun
+                )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return list(res)
