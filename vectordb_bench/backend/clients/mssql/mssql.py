@@ -92,8 +92,10 @@ class MSSQL(VectorDB):
     def init(self) -> None:
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         self.cnxn = cnxn    
-        cnxn.autocommit = False
+        cnxn.autocommit = True
+        self.cursor = cnxn.cursor()
         yield 
+        self.cursor.close()
         self.cnxn.close()
 
     def ready_to_load(self):
@@ -109,17 +111,18 @@ class MSSQL(VectorDB):
         pass
 
     def array_to_vector(self, a:list[float]) -> bytearray:
-        b = bytearray()
-        b.append(169)
-        b.append(170)
+        # header
+        b = bytearray([169, 170])
 
+        # number of items
         b += bytearray(struct.pack("i", len(a)))
+        pf = f"{len(a)}f"
 
-        b.append(0)
-        b.append(0)
+        # filler
+        b += bytearray([0,0])
 
-        for i in range(len(a)):
-            b += bytearray(struct.pack("f", a[i]))
+        # items
+        b += bytearray(struct.pack(pf, *a))
 
         return b
     
@@ -137,10 +140,9 @@ class MSSQL(VectorDB):
             params = [(metadata[i], self.array_to_vector(embeddings[i])) for i in range(len(metadata))]
 
             log.info(f'Loading table...')
-            cursor = self.cnxn.cursor()
+            cursor = self.cursor
             #cursor.fast_executemany = True               
-            cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))
-            cursor.commit()           
+            cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))     
 
             return len(metadata), None
         except Exception as e:
@@ -157,8 +159,8 @@ class MSSQL(VectorDB):
     ) -> list[int]:        
         search_param = self.case_config.search_param()
         metric_fun = search_param["metric_fun"]
-        log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
-        cursor = self.cnxn.cursor()
+        #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
+        cursor = self.cursor
         if filters:
             cursor.execute(f"""            
                 exec [$vector].[stp_filter_similar${self.table_name}$vector] @id=?, @v=?, @k=?, @p=?, @m=?
@@ -180,6 +182,6 @@ class MSSQL(VectorDB):
                 )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
-        return list(res)
+        return res
         
         
