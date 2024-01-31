@@ -1,7 +1,3 @@
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 create or alter procedure [$vector].[stp_find_similar$vector_768$vector] 
 @v varbinary(8000),
 @k int,
