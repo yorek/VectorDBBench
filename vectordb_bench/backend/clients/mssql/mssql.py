@@ -112,7 +112,7 @@ class MSSQL(VectorDB):
 
     def array_to_vector(self, a:list[float]) -> bytearray:
         # header
-        b = bytearray([169, 170])
+        b = bytearray([169, 1])
 
         # number of items
         b += bytearray(struct.pack("i", len(a)))
