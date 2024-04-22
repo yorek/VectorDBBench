@@ -158,26 +158,26 @@ class MSSQL(VectorDB):
         timeout: int | None = None,
     ) -> list[int]:        
         search_param = self.case_config.search_param()
-        metric_fun = search_param["metric_fun"]
-        probes = int(search_param["probes"]), 
+        metric_function = search_param["metric_fun"]
+        #probes = int(search_param["probes"]), 
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
             cursor.execute(f"""            
-                exec [$vector].[stp_filter_similar] @id=?, @v=?, @k=?, @m=?
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id > @id order by vector_distance(@m, @v, v.[vector])
                 """, 
-                int(filters.get('id')),
-                self.array_to_vector(query), 
                 k,                
-                metric_fun
+                int(filters.get('id')),
+                metric_function.
+                self.array_to_vector(query)
                 )
         else:
             cursor.execute(f"""            
-                exec [$vector].[stp_find_similar] @v=?, @k=?, @m=?
+                select top(@k) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(@m, @v, v.[vector]) 
                 """, 
-                self.array_to_vector(query), 
                 k,                
-                metric_fun
+                metric_function,
+                self.array_to_vector(query)                
                 )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
