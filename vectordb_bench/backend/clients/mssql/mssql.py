@@ -164,16 +164,16 @@ class MSSQL(VectorDB):
         cursor = self.cursor
         if filters:
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id > @id order by vector_distance(@m, @v, v.[vector])
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id > ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
                 """, 
                 k,                
                 int(filters.get('id')),
-                metric_function.
+                metric_function,
                 self.array_to_vector(query)
                 )
         else:
             cursor.execute(f"""            
-                select top(@k) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(@m, @v, v.[vector]) 
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
                 """, 
                 k,                
                 metric_function,
