@@ -159,25 +159,24 @@ class MSSQL(VectorDB):
     ) -> list[int]:        
         search_param = self.case_config.search_param()
         metric_fun = search_param["metric_fun"]
+        probes = int(search_param["probes"]), 
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
             cursor.execute(f"""            
-                exec [$vector].[stp_filter_similar${self.table_name}$vector] @id=?, @v=?, @k=?, @p=?, @m=?
+                exec [$vector].[stp_filter_similar] @id=?, @v=?, @k=?, @m=?
                 """, 
                 int(filters.get('id')),
                 self.array_to_vector(query), 
-                k,
-                int(search_param["probes"]), 
+                k,                
                 metric_fun
                 )
         else:
             cursor.execute(f"""            
-                exec [$vector].[stp_find_similar${self.table_name}$vector] @v=?, @k=?, @p=?, @m=?
+                exec [$vector].[stp_find_similar] @v=?, @k=?, @m=?
                 """, 
                 self.array_to_vector(query), 
-                k,
-                int(search_param["probes"]), 
+                k,                
                 metric_fun
                 )
         rows = cursor.fetchall()
