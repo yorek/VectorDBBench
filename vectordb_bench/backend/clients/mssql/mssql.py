@@ -59,7 +59,7 @@ class MSSQL(VectorDB):
             end
         """)
         cnxn.commit()
-        
+            
         log.info(f"Creating table type...")
         cursor.execute(f""" 
             if type_id('dbo.vector_payload') is null begin
@@ -164,7 +164,7 @@ class MSSQL(VectorDB):
         cursor = self.cursor
         if filters:
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id > ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
                 """, 
                 k,                
                 int(filters.get('id')),
