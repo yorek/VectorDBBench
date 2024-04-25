@@ -15,7 +15,7 @@ Follow instructions here: https://ubuntuhandbook.org/index.php/2022/10/python-3-
 Use the following commands:
 
 ```
-apt install python3.11 python3.11-distutils python3.11-venv
+sudo apt install python3.11 python3.11-distutils python3.11-venv
 curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 ```
 
