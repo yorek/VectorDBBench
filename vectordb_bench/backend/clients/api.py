@@ -16,9 +16,13 @@ class IndexType(str, Enum):
     HNSW = "HNSW"
     DISKANN = "DISKANN"
     IVFFlat = "IVF_FLAT"
+    IVFSQ8 = "IVF_SQ8"
     Flat = "FLAT"
     AUTOINDEX = "AUTOINDEX"
     ES_HNSW = "hnsw"
+    GPU_IVF_FLAT = "GPU_IVF_FLAT"
+    GPU_IVF_PQ = "GPU_IVF_PQ"
+    GPU_CAGRA = "GPU_CAGRA"
 
 
 class DBConfig(ABC, BaseModel):
@@ -49,6 +53,7 @@ class DBConfig(ABC, BaseModel):
 
 class DBCaseConfig(ABC):
     """Case specific vector database configs, usually uesed for index params like HNSW"""
+
     @abstractmethod
     def index_param(self) -> dict:
         raise NotImplementedError
@@ -60,7 +65,9 @@ class DBCaseConfig(ABC):
 
 class EmptyDBCaseConfig(BaseModel, DBCaseConfig):
     """EmptyDBCaseConfig will be used if the vector database has no case specific configs"""
+
     null: str | None = None
+
     def index_param(self) -> dict:
         return {}
 
@@ -108,7 +115,7 @@ class VectorDB(ABC):
     @abstractmethod
     @contextmanager
     def init(self) -> None:
-        """ create and destory connections to database.
+        """create and destory connections to database.
 
         Examples:
             >>> with self.init():

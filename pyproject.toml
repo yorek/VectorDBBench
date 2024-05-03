@@ -5,6 +5,10 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.package-data]
 "vectordb_bench.results" = ["*.json"]
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vectordb_bench"]
+
 [project]
 name = "vectordb-bench"
 authors = [
@@ -26,6 +30,7 @@ dependencies = [
     "streamlit_extras",
     "tqdm",
     "s3fs",
+    "oss2",
     "psutil",
     "polars",
     "plotly",
@@ -61,7 +66,7 @@ qdrant = [ "qdrant-client" ]
 pinecone = [ "pinecone-client" ]
 weaviate = [ "weaviate-client" ]
 elastic = [ "elasticsearch" ]
-pgvector = [ "pgvector", "sqlalchemy" ]
+pgvector = [ "pgvector", "psycopg2" ]
 pgvecto_rs = [ "psycopg2" ]
 redis = [ "redis" ]
 chromadb = [ "chromadb" ]

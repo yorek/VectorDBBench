@@ -23,6 +23,7 @@ from .models import (
 from .backend.result_collector import ResultCollector
 from .backend.assembler import Assembler
 from .backend.task_runner import TaskRunner
+from .backend.data_source import DatasetSource
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,17 @@ class BenchMarkRunner:
     def __init__(self):
         self.running_task: TaskRunner | None = None
         self.latest_error: str | None = None
+        self.drop_old: bool = True
+        self.dataset_source: DatasetSource = DatasetSource.S3
+
+    def set_drop_old(self, drop_old: bool):
+        self.drop_old = drop_old
+
+    def set_download_address(self, use_aliyun: bool):
+        if use_aliyun:
+            self.dataset_source = DatasetSource.AliyunOSS
+        else:
+            self.dataset_source = DatasetSource.S3
 
     def run(self, tasks: list[TaskConfig], task_label: str | None = None) -> bool:
         """run all the tasks in the configs, write one result into the path"""
@@ -50,7 +62,7 @@ class BenchMarkRunner:
             log.warning("Empty tasks submitted")
             return False
 
-        log.debug(f"tasks: {tasks}")
+        log.debug(f"tasks: {tasks}, task_label: {task_label}, dataset source: {self.dataset_source}")
 
         # Generate run_id
         run_id = uuid.uuid4().hex
@@ -61,7 +73,7 @@ class BenchMarkRunner:
         self.latest_error = ""
 
         try:
-            self.running_task = Assembler.assemble_all(run_id, task_label, tasks)
+            self.running_task = Assembler.assemble_all(run_id, task_label, tasks, self.dataset_source)
             self.running_task.display()
         except ModuleNotFoundError as e:
             msg = f"Please install client for database, error={e}"
@@ -145,7 +157,12 @@ class BenchMarkRunner:
                     task_config=runner.config,
                 )
 
-                drop_old = False if latest_runner and runner == latest_runner else config.DROP_OLD
+                # drop_old = False if latest_runner and runner == latest_runner else config.DROP_OLD
+                drop_old = config.DROP_OLD
+                if latest_runner and runner == latest_runner:
+                    drop_old = False
+                elif not self.drop_old:
+                    drop_old = False
                 try:
                     log.info(f"[{idx+1}/{running_task.num_cases()}] start case: {runner.display()}, drop_old={drop_old}")
                     case_res.metrics = runner.run(drop_old)

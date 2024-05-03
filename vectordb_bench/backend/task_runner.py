@@ -17,6 +17,7 @@ from .clients import (
 from ..metric import Metric
 from .runner import MultiProcessingSearchRunner
 from .runner import SerialSearchRunner, SerialInsertRunner
+from .data_source  import DatasetSource
 
 
 log = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ class CaseRunner(BaseModel):
     config: TaskConfig
     ca: Case
     status: RunningStatus
+    dataset_source: DatasetSource
 
     db: api.VectorDB | None = None
     test_emb: list[list[float]] | None = None
@@ -59,7 +61,7 @@ class CaseRunner(BaseModel):
             return False
 
     def display(self) -> dict:
-        c_dict = self.ca.dict(include={'label':True, 'filters': True,'dataset':{'data': True} })
+        c_dict = self.ca.dict(include={'label':True, 'filters': True,'dataset':{'data': {'name': True, 'size': True, 'dim': True, 'metric_type': True, 'label': True}} })
         c_dict['db'] = self.config.db_name
         return c_dict
 
@@ -82,7 +84,7 @@ class CaseRunner(BaseModel):
     def _pre_run(self, drop_old: bool = True):
         try:
             self.init_db(drop_old)
-            self.ca.dataset.prepare()
+            self.ca.dataset.prepare(self.dataset_source, filters=self.ca.filter_rate)
         except ModuleNotFoundError as e:
             log.warning(f"pre run case error: please install client for db: {self.config.db}, error={e}")
             raise e from None
@@ -138,8 +140,8 @@ class CaseRunner(BaseModel):
                 )
 
             self._init_search_runner()
-            m.recall, m.serial_latency_p99 = self._serial_search()
             m.qps = self._conc_search()
+            m.recall, m.serial_latency_p99 = self._serial_search()
         except Exception as e:
             log.warning(f"Failed to run performance case, reason = {e}")
             traceback.print_exc()
@@ -213,7 +215,7 @@ class CaseRunner(BaseModel):
             test_emb = test_emb / np.linalg.norm(test_emb, axis=1)[:, np.newaxis]
         self.test_emb = test_emb.tolist()
 
-        gt_df = self.ca.dataset.get_ground_truth(self.ca.filter_rate)
+        gt_df = self.ca.dataset.gt_data
 
         self.serial_search_runner = SerialSearchRunner(
             db=self.db,

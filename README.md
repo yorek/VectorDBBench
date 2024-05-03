@@ -63,7 +63,7 @@ To facilitate the presentation of test results and provide a comprehensive perfo
 
 1. For each case, select a base value and score each system based on relative values. 
     - For QPS and QP$, we use the highest value as the reference, denoted as `base_QPS` or `base_QP$`, and the score of each system is `(QPS/base_QPS) * 100` or `(QP$/base_QP$) * 100`. 
-    - For Latency, we use the lowest value as the reference, that is, `base_Latency`, and the score of each system is `(Latency + 10ms)/(base_Latency + 10ms)`. 
+    - For Latency, we use the lowest value as the reference, that is, `base_Latency`, and the score of each system is `(base_Latency + 10ms)/(Latency + 10ms) * 100`. 
 
     We want to give equal weight to different cases, and not let a case with high absolute result values become the sole reason for the overall scoring. Therefore, when scoring different systems in each case, we need to use relative values. 
 
@@ -90,6 +90,19 @@ OR:
 ```shell
 $ init_bench
 ```
+
+OR:
+
+If you are using [dev container](https://code.visualstudio.com/docs/devcontainers/containers), create
+the following dataset directory first:
+
+```shell
+# Mount local ~/vectordb_bench/dataset to contain's /tmp/vectordb_bench/dataset.
+# If you are not comfortable with the path name, feel free to change it in devcontainer.json
+mkdir -p ~/vectordb_bench/dataset
+```
+After reopen the repository in container, run `python -m vectordb_bench` in the container's bash.
+
 ### Check coding styles
 ```shell
 $ ruff check vectordb_bench
@@ -126,7 +139,7 @@ Our client module is designed with flexibility and extensibility in mind, aiming
 We've developed an array of 15 comprehensive benchmark cases to test vector databases' various capabilities, each designed to give you a different piece of the puzzle. These cases are categorized into three main types:
 #### Capacity Case
 - **Large Dim:** Tests the database's loading capacity by inserting large-dimension vectors (GIST 100K vectors, 960 dimensions) until fully loaded. The final number of inserted vectors is reported.
-- **Small Dim:** Similar to the Large Dim case but uses small-dimension vectors (SIFT 100K vectors, 128 dimensions).
+- **Small Dim:** Similar to the Large Dim case but uses small-dimension vectors (SIFT 500K vectors, 128 dimensions).
 #### Search Performance Case
 - **XLarge Dataset:** Measures search performance with a massive dataset (LAION 100M vectors, 768 dimensions) at varying parallel levels. The results include index building time, recall, latency, and maximum QPS.
 - **Large Dataset:** Similar to the XLarge Dataset case, but uses a slightly smaller dataset (10M-768dim, 5M-1536dim).
@@ -140,7 +153,7 @@ For a quick reference, here is a table summarizing the key aspects of each case:
 
 Case No. | Case Type | Dataset Size  | Filtering Rate | Results |
 |----------|-----------|--------------|----------------|---------|
-1 | Capacity Case | SIFT 100K vectors, 128 dimensions | N/A | Number of inserted vectors |
+1 | Capacity Case | SIFT 500K vectors, 128 dimensions | N/A | Number of inserted vectors |
 2 | Capacity Case | GIST 100K vectors, 960 dimensions | N/A | Number of inserted vectors |
 3 | Search Performance Case | LAION 100M vectors, 768 dimensions | N/A | Index building time, recall, latency, maximum QPS |
 4 | Search Performance Case | Cohere 10M vectors, 768 dimensions | N/A | Index building time, recall, latency, maximum QPS |

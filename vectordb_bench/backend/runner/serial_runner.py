@@ -40,17 +40,15 @@ class SerialInsertRunner:
                 emb_np = np.stack(data_df['emb'])
                 if self.normalize:
                     log.debug("normalize the 100k train data")
-                    all_embeddings = emb_np / np.linalg.norm(emb_np, axis=1)[:, np.newaxis].tolist()
+                    all_embeddings = (emb_np / np.linalg.norm(emb_np, axis=1)[:, np.newaxis]).tolist()
                 else:
                     all_embeddings = emb_np.tolist()
                 del(emb_np)
                 log.debug(f"batch dataset size: {len(all_embeddings)}, {len(all_metadata)}")
 
-                last_batch = self.dataset.data.size - count == len(all_metadata)
                 insert_count, error = self.db.insert_embeddings(
                     embeddings=all_embeddings,
                     metadata=all_metadata,
-                    last_batch=last_batch,
                 )
                 if error is not None:
                     raise error

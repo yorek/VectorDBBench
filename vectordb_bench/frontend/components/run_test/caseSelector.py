@@ -59,7 +59,7 @@ def caseConfigSetting(st, allCaseConfigs, case, activedDbList):
         )
         caseConfig = allCaseConfigs[db][case]
         k = 0
-        for config in CASE_CONFIG_MAP.get(db, {}).get(case, []):
+        for config in CASE_CONFIG_MAP.get(db, {}).get(case.case_cls().label, []):
             if config.isDisplayed(caseConfig):
                 column = columns[1 + k % CASE_CONFIG_SETTING_COLUMNS]
                 key = "%s-%s-%s" % (db, case, config.label.value)
@@ -78,8 +78,8 @@ def caseConfigSetting(st, allCaseConfigs, case, activedDbList):
                 elif config.inputType == InputType.Number:
                     caseConfig[config.label] = column.number_input(
                         config.label.value,
-                        format="%d",
-                        step=1,
+                        # format="%d",
+                        step=config.inputConfig.get("step", 1),
                         min_value=config.inputConfig["min"],
                         max_value=config.inputConfig["max"],
                         key=key,
