@@ -158,26 +158,43 @@ class MSSQL(VectorDB):
         timeout: int | None = None,
     ) -> list[int]:        
         search_param = self.case_config.search_param()
-        metric_function = search_param["metric_fun"]
-        #probes = int(search_param["probes"]), 
+        metric_function = search_param["metric"]
+        efSearch = search_param["efSearch"]
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
+            # cursor.execute(f"""            
+            #     select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
+            #     """, 
+            #     k,                
+            #     int(filters.get('id')),
+            #     metric_function,
+            #     self.array_to_vector(query)
+            #     )
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
+                select id from [{self.schema_name}].[{self.table_name}$hsnw_filter](?,?,?,?)
                 """, 
-                k,                
-                int(filters.get('id')),
                 metric_function,
+                k,                
+                int(efSearch),
+                int(filters.get('id')),
                 self.array_to_vector(query)
                 )
         else:
+            # cursor.execute(f"""            
+            #     select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
+            #     """, 
+            #     k,                
+            #     metric_function,
+            #     self.array_to_vector(query)                
+            #     )
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
+                select id from [{self.schema_name}].[{self.table_name}$hsnw_search](?,?,?,?)
                 """, 
-                k,                
                 metric_function,
-                self.array_to_vector(query)                
+                k,                
+                int(efSearch),
+                self.array_to_vector(query)
                 )
         rows = cursor.fetchall()
         res = [row.id for row in rows]

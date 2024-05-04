@@ -18,8 +18,7 @@ class MSSQLConfig(DBConfig):
 
 class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
     metric_type: MetricType | None = None
-    lists: int | None = 1000
-    probes: int | None = 10
+    efSearch: int | None = 48
 
     def parse_metric(self) -> str: 
         if self.metric_type == MetricType.L2:
@@ -28,9 +27,6 @@ class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
             return "dot"
         return "cosine"
     
-    def parse_metric_fun_str(self) -> str: 
-        return self.parse_metric()
-
     def index_param(self) -> dict:
         return {
             "lists" : self.lists,
@@ -39,6 +35,6 @@ class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
     
     def search_param(self) -> dict:
         return {
-            "probes" : self.probes,
-            "metric_fun" : self.parse_metric_fun_str()
+            "efSearch" : self.efSearch,
+            "metric" : self.parse_metric()
         }
