@@ -24,7 +24,7 @@ CASE_LIST_WITH_DIVIDER = [
     CaseType.Performance768D1M1P,
     DIVIDER,
     CaseType.Performance1536D5M1P,
-    CaseType.Performance1536D500K1P,    
+    CaseType.Performance1536D500K1P,
     DIVIDER,
     CaseType.Performance768D10M99P,
     CaseType.Performance768D1M99P,
@@ -113,6 +113,18 @@ CaseConfigParamInput_EFConstruction_ES = CaseConfigInput(
         "max": 512,
         "value": 360,
     },
+)
+
+CaseConfigParamInput_EFConstruction_PgVectoRS = CaseConfigInput(
+    label=CaseConfigParamType.EFConstruction,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 8,
+        "max": 512,
+        "value": 360,
+    },
+    isDisplayed=lambda config: config[CaseConfigParamType.IndexType]
+    == IndexType.HNSW.value,
 )
 
 CaseConfigParamInput_M_ES = CaseConfigInput(

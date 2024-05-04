@@ -29,6 +29,7 @@ class DB(Enum):
     QdrantCloud = "QdrantCloud"
     WeaviateCloud = "WeaviateCloud"
     PgVector = "PgVector"
+    PgVectoRS = "PgVectoRS"
     Redis = "Redis"
     Chroma = "Chroma"
     MSSQL = "MSSQL"
@@ -39,7 +40,7 @@ class DB(Enum):
         if self == DB.MSSQL:
             from .mssql.mssql import MSSQL
             return MSSQL
-
+        
         if self == DB.Milvus:
             from .milvus.milvus import Milvus
             return Milvus
@@ -67,6 +68,10 @@ class DB(Enum):
         if self == DB.PgVector:
             from .pgvector.pgvector import PgVector
             return PgVector
+
+        if self == DB.PgVectoRS:
+            from .pgvecto_rs.pgvecto_rs import PgVectoRS
+            return PgVectoRS
 
         if self == DB.Redis:
             from .redis.redis import Redis
@@ -111,6 +116,10 @@ class DB(Enum):
             from .pgvector.config import PgVectorConfig
             return PgVectorConfig
 
+        if self == DB.PgVectoRS:
+            from .pgvecto_rs.config import PgVectoRSConfig
+            return PgVectoRSConfig
+
         if self == DB.Redis:
             from .redis.config import RedisConfig
             return RedisConfig
@@ -123,7 +132,7 @@ class DB(Enum):
         if self == DB.MSSQL:
             from .mssql.config import MSSQLVectorIndexConfig
             return MSSQLVectorIndexConfig
-
+        
         if self == DB.Milvus:
             from .milvus.config import _milvus_case_config
             return _milvus_case_config.get(index_type)
@@ -147,6 +156,10 @@ class DB(Enum):
         if self == DB.PgVector:
             from .pgvector.config import _pgvector_case_config
             return _pgvector_case_config.get(index_type)
+
+        if self == DB.PgVectoRS:
+            from .pgvecto_rs.config import _pgvecto_rs_case_config
+            return _pgvecto_rs_case_config.get(index_type)
 
         # DB.Pinecone, DB.Chroma, DB.Redis
         return EmptyDBCaseConfig

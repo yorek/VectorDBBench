@@ -1,4 +1,4 @@
-create login benchmark with password = 'B3nch_mark';
+create login benchmark with password = 'BOR23bSu0ZsDc9zR8wdHn2w0P5yoEbBD';
 create user benchmark for login benchmark;
 alter role db_owner add member benchmark;
 

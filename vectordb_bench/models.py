@@ -24,9 +24,9 @@ log = logging.getLogger(__name__)
 class LoadTimeoutError(TimeoutError):
     pass
 
+
 class PerformanceTimeoutError(TimeoutError):
     pass
-
 
 
 class CaseConfigParamType(Enum):
@@ -117,7 +117,6 @@ class TestResult(BaseModel):
                 ),
                 db=db.value.lower(),
             )
-
 
     def get_db_results(self) -> dict[DB, CaseResult]:
         db2case = {}
