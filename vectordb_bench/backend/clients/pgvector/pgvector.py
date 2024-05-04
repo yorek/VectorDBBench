@@ -1,30 +1,16 @@
 """Wrapper around the Pgvector vector database over VectorDB"""
 
+import io
 import logging
 from contextlib import contextmanager
 from typing import Any
+import pandas as pd
+import psycopg2
+import psycopg2.extras
 
-from ..api import VectorDB, DBCaseConfig
-from pgvector.sqlalchemy import Vector
-from sqlalchemy import (
-    MetaData,
-    create_engine,
-    insert,
-    select,
-    Index,
-    Table,
-    text,
-    Column,
-    Float, 
-    Integer
-)
-from sqlalchemy.orm import (
-    declarative_base, 
-    mapped_column, 
-    Session
-)
+from ..api import IndexType, VectorDB, DBCaseConfig
 
-log = logging.getLogger(__name__) 
+log = logging.getLogger(__name__)
 
 class PgVector(VectorDB):
     """ Use SQLAlchemy instructions"""
@@ -37,6 +23,7 @@ class PgVector(VectorDB):
         drop_old: bool = False,
         **kwargs,
     ):
+        self.name = "PgVector"
         self.db_config = db_config
         self.case_config = db_case_config
         self.table_name = collection_name
@@ -47,22 +34,26 @@ class PgVector(VectorDB):
         self._vector_field = "embedding"
 
         # construct basic units
-        pg_engine = create_engine(**self.db_config)
-        Base = declarative_base()
-        pq_metadata = Base.metadata
-        pq_metadata.reflect(pg_engine) 
-        
+        self.conn = psycopg2.connect(**self.db_config)
+        self.conn.autocommit = False
+        self.cursor = self.conn.cursor()
+
         # create vector extension
-        with pg_engine.connect() as conn: 
-            conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
-            conn.commit()
-        
-        self.pg_table = self._get_table_schema(pq_metadata)
-        if drop_old and self.table_name in pq_metadata.tables:
+        self.cursor.execute('CREATE EXTENSION IF NOT EXISTS vector')
+        self.conn.commit()
+
+        if drop_old :
             log.info(f"Pgvector client drop table : {self.table_name}")
             # self.pg_table.drop(pg_engine, checkfirst=True)
-            pq_metadata.drop_all(pg_engine)
-            self._create_table(dim, pg_engine)
+            self._drop_index()
+            self._drop_table()
+            self._create_table(dim)
+            self._create_index()
+
+        self.cursor.close()
+        self.conn.close()
+        self.cursor = None
+        self.conn = None
 
     @contextmanager
     def init(self) -> None:
@@ -72,53 +63,67 @@ class PgVector(VectorDB):
             >>>     self.insert_embeddings()
             >>>     self.search_embedding()
         """
-        self.pg_engine = create_engine(**self.db_config)
+        self.conn = psycopg2.connect(**self.db_config)
+        self.conn.autocommit = False
+        self.cursor = self.conn.cursor()
 
-        Base = declarative_base()
-        pq_metadata = Base.metadata
-        pq_metadata.reflect(self.pg_engine) 
-        self.pg_session = Session(self.pg_engine)
-        self.pg_table = self._get_table_schema(pq_metadata)
-        yield 
-        self.pg_session = None
-        self.pg_engine = None 
-        del (self.pg_session)
-        del (self.pg_engine)
-    
+        try:
+            yield
+        finally:
+            self.cursor.close()
+            self.conn.close()
+            self.cursor = None
+            self.conn = None
+
+    def _drop_table(self):
+        assert self.conn is not None, "Connection is not initialized"
+        assert self.cursor is not None, "Cursor is not initialized"
+
+        self.cursor.execute(f'DROP TABLE IF EXISTS public."{self.table_name}"')
+        self.conn.commit()
+
     def ready_to_load(self):
         pass
 
     def optimize(self):
-        pass
+        log.info(f"{self.name} optimizing")
+        self._drop_index()
+        self._create_index()
 
     def ready_to_search(self):
         pass
 
-    def _get_table_schema(self, pq_metadata):
-        return Table(
-            self.table_name,
-            pq_metadata,
-            Column(self._primary_field, Integer, primary_key=True),
-            Column(self._vector_field, Vector(self.dim)),
-            extend_existing=True
-        )
-    
-    def _create_index(self, pg_engine):
-        index_param = self.case_config.index_param()
-        index = Index(self._index_name, self.pg_table.c.embedding,
-            postgresql_using='ivfflat',
-            postgresql_with={'lists': index_param["lists"]},
-            postgresql_ops={'embedding': index_param["metric"]}
-        )
-        index.drop(pg_engine, checkfirst = True)
-        index.create(pg_engine)
+    def _drop_index(self):
+        assert self.conn is not None, "Connection is not initialized"
+        assert self.cursor is not None, "Cursor is not initialized"
 
-    def _create_table(self, dim, pg_engine : int):
+        self.cursor.execute(f'DROP INDEX IF EXISTS "{self._index_name}"')
+        self.conn.commit()
+
+    def _create_index(self):
+        assert self.conn is not None, "Connection is not initialized"
+        assert self.cursor is not None, "Cursor is not initialized"
+
+        index_param = self.case_config.index_param()
+        if self.case_config.index == IndexType.HNSW:
+            log.debug(f'Creating HNSW index. m={index_param["m"]}, ef_construction={index_param["ef_construction"]}')
+            self.cursor.execute(f'CREATE INDEX IF NOT EXISTS {self._index_name} ON public."{self.table_name}" USING hnsw (embedding {index_param["metric"]}) WITH (m={index_param["m"]}, ef_construction={index_param["ef_construction"]});')
+        elif self.case_config.index == IndexType.IVFFlat:
+            log.debug(f'Creating IVFFLAT index. list={index_param["lists"]}')
+            self.cursor.execute(f'CREATE INDEX IF NOT EXISTS {self._index_name} ON public."{self.table_name}" USING ivfflat (embedding {index_param["metric"]}) WITH (lists={index_param["lists"]});')
+        else:
+            assert "Invalid index type {self.case_config.index}"
+        self.conn.commit()
+
+    def _create_table(self, dim : int):
+        assert self.conn is not None, "Connection is not initialized"
+        assert self.cursor is not None, "Cursor is not initialized"
+
         try:
             # create table
-            self.pg_table.create(bind = pg_engine, checkfirst = True)
-            # create vec index
-            self._create_index(pg_engine)
+            self.cursor.execute(f'CREATE TABLE IF NOT EXISTS public."{self.table_name}" (id BIGINT PRIMARY KEY, embedding vector({dim}));')
+            self.cursor.execute(f'ALTER TABLE public."{self.table_name}" ALTER COLUMN embedding SET STORAGE PLAIN;')
+            self.conn.commit()
         except Exception as e:
             log.warning(f"Failed to create pgvector table: {self.table_name} error: {e}")
             raise e from None
@@ -129,31 +134,47 @@ class PgVector(VectorDB):
         metadata: list[int],
         **kwargs: Any,
     ) -> (int, Exception):
+        assert self.conn is not None, "Connection is not initialized"
+        assert self.cursor is not None, "Cursor is not initialized"
+
         try:
-            items = [dict(id = metadata[i], embedding=embeddings[i]) for i in range(len(metadata))]
-            self.pg_session.execute(insert(self.pg_table), items)
-            self.pg_session.commit()
+            items = {
+                "id": metadata,
+                "embedding": embeddings
+            }
+            df = pd.DataFrame(items)
+            csv_buffer = io.StringIO()
+            df.to_csv(csv_buffer, index=False, header=False)
+            csv_buffer.seek(0)
+            self.cursor.copy_expert(f"COPY public.\"{self.table_name}\" FROM STDIN WITH (FORMAT CSV)", csv_buffer)
+            self.conn.commit()
+
             return len(metadata), None
         except Exception as e:
-            log.warning(f"Failed to insert data into pgvector table ({self.table_name}), error: {e}")   
+            log.warning(f"Failed to insert data into pgvector table ({self.table_name}), error: {e}")
             return 0, e
 
-    def search_embedding(        
+    def search_embedding(
         self,
         query: list[float],
         k: int = 100,
         filters: dict | None = None,
         timeout: int | None = None,
     ) -> list[int]:
-        assert self.pg_table is not None
+        assert self.conn is not None, "Connection is not initialized"
+        assert self.cursor is not None, "Cursor is not initialized"
+
         search_param =self.case_config.search_param()
-        with self.pg_engine.connect() as conn: 
-            conn.execute(text(f'SET ivfflat.probes = {search_param["probes"]}'))
-            conn.commit()
-        op_fun = getattr(self.pg_table.c.embedding, search_param["metric_fun"])
-        if filters:
-            res = self.pg_session.scalars(select(self.pg_table).order_by(op_fun(query)).filter(self.pg_table.c.id > filters.get('id')).limit(k))
-        else: 
-            res = self.pg_session.scalars(select(self.pg_table).order_by(op_fun(query)).limit(k))
-        return list(res)
-        
+
+        if self.case_config.index == IndexType.HNSW:
+            self.cursor.execute(f'SET hnsw.ef_search = {search_param["ef"]}')
+            self.cursor.execute(f"SELECT id FROM public.\"{self.table_name}\" ORDER BY embedding {search_param['metric_fun_op']} '{query}' LIMIT {k};")
+        elif self.case_config.index == IndexType.IVFFlat:
+            self.cursor.execute(f'SET ivfflat.probes = {search_param["probes"]}')
+            self.cursor.execute(f"SELECT id FROM public.\"{self.table_name}\" ORDER BY embedding {search_param['metric_fun_op']} '{query}' LIMIT {k};")
+        else:
+            assert "Invalid index type {self.case_config.index}"
+        self.conn.commit()
+        result = self.cursor.fetchall()
+
+        return [int(i[0]) for i in result]

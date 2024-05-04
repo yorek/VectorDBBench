@@ -3,13 +3,13 @@
 import logging
 import time
 from contextlib import contextmanager
-from typing import Iterable, Type
+from typing import Iterable
 
 from pymilvus import Collection, utility
 from pymilvus import CollectionSchema, DataType, FieldSchema, MilvusException
 
-from ..api import VectorDB, DBCaseConfig, DBConfig, IndexType
-from .config import MilvusConfig, _milvus_case_config
+from ..api import VectorDB, IndexType
+from .config import MilvusIndexConfig
 
 
 log = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ class Milvus(VectorDB):
         self,
         dim: int,
         db_config: dict,
-        db_case_config: DBCaseConfig,
+        db_case_config: MilvusIndexConfig,
         collection_name: str = "VectorDBBenchCollection",
         drop_old: bool = False,
         name: str = "Milvus",
@@ -89,6 +89,7 @@ class Milvus(VectorDB):
         connections.disconnect("default")
 
     def _optimize(self):
+        self._post_insert()
         log.info(f"{self.name} optimizing before search")
         try:
             self.col.load()
@@ -116,9 +117,14 @@ class Milvus(VectorDB):
                     time.sleep(5)
 
             wait_index()
-            self.col.compact()
-            self.col.wait_for_compaction_completed()
-            wait_index()
+
+            # Skip compaction if use GPU indexType
+            if self.case_config.index in [IndexType.GPU_CAGRA, IndexType.GPU_IVF_FLAT, IndexType.GPU_IVF_PQ]:
+                log.debug("skip compaction for gpu index type.")
+            else :
+                self.col.compact()
+                self.col.wait_for_compaction_completed()
+                wait_index()
 
         except Exception as e:
             log.warning(f"{self.name} optimize error: {e}")
@@ -132,11 +138,11 @@ class Milvus(VectorDB):
         try:
             if not coll.has_index(index_name=self._index_name):
                 log.info(f"{self.name} create index")
-                    coll.create_index(
-                        self._vector_field,
-                        self.case_config.index_param(),
-                        index_name=self._index_name,
-                    )
+                coll.create_index(
+                    self._vector_field,
+                    self.case_config.index_param(),
+                    index_name=self._index_name,
+                )
 
             coll.load()
             log.info(f"{self.name} load")
@@ -151,7 +157,7 @@ class Milvus(VectorDB):
 
     def need_normalize_cosine(self) -> bool:
         """Wheather this database need to normalize dataset to support COSINE"""
-        return True
+        return False
 
     def insert_embeddings(
         self,
@@ -174,8 +180,6 @@ class Milvus(VectorDB):
                 ]
                 res = self.col.insert(insert_data)
                 insert_count += len(res.primary_keys)
-            if kwargs.get("last_batch"):
-                self._post_insert()
         except MilvusException as e:
             log.info(f"Failed to insert data: {e}")
             return (insert_count, e)
