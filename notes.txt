@@ -14,7 +14,7 @@ echo  $(hostname).local
 LAPTOP-DM-2.local
 vectordb
 
-
+ export LOG_LEVEL="DEBUG"
 --
 
 
