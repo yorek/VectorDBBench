@@ -1,48 +1,154 @@
-from enum import IntEnum
+from enum import IntEnum, Enum
 import typing
 from pydantic import BaseModel
 from vectordb_bench.backend.cases import CaseLabel, CaseType
 from vectordb_bench.backend.clients import DB
 from vectordb_bench.backend.clients.api import IndexType
+from vectordb_bench.frontend.components.custom.getCustomConfig import get_custom_configs
 
-from vectordb_bench.models import CaseConfigParamType
+from vectordb_bench.models import CaseConfig, CaseConfigParamType
 
 MAX_STREAMLIT_INT = (1 << 53) - 1
 
-DB_LIST = [d for d in DB]
+DB_LIST = [d for d in DB if d != DB.Test]
 
-DIVIDER = "DIVIDER"
-CASE_LIST_WITH_DIVIDER = [
+
+class Delimiter(Enum):
+    Line = "line"
+
+
+class BatchCaseConfig(BaseModel):
+    label: str = ""
+    description: str = ""
+    cases: list[CaseConfig] = []
+
+
+class UICaseItem(BaseModel):
+    isLine: bool = False
+    label: str = ""
+    description: str = ""
+    cases: list[CaseConfig] = []
+    caseLabel: CaseLabel = CaseLabel.Performance
+
+    def __init__(
+        self,
+        isLine: bool = False,
+        case_id: CaseType = None,
+        custom_case: dict = {},
+        cases: list[CaseConfig] = [],
+        label: str = "",
+        description: str = "",
+        caseLabel: CaseLabel = CaseLabel.Performance,
+    ):
+        if isLine is True:
+            super().__init__(isLine=True)
+        elif case_id is not None and isinstance(case_id, CaseType):
+            c = case_id.case_cls(custom_case)
+            super().__init__(
+                label=c.name,
+                description=c.description,
+                cases=[CaseConfig(case_id=case_id, custom_case=custom_case)],
+                caseLabel=c.label,
+            )
+        else:
+            super().__init__(
+                label=label,
+                description=description,
+                cases=cases,
+                caseLabel=caseLabel,
+            )
+
+    def __hash__(self) -> int:
+        return hash(self.json())
+
+
+class UICaseItemCluster(BaseModel):
+    label: str = ""
+    uiCaseItems: list[UICaseItem] = []
+
+
+def get_custom_case_items() -> list[UICaseItem]:
+    custom_configs = get_custom_configs()
+    return [
+        UICaseItem(
+            case_id=CaseType.PerformanceCustomDataset, custom_case=custom_config.dict()
+        )
+        for custom_config in custom_configs
+    ]
+
+
+def get_custom_case_cluter() -> UICaseItemCluster:
+    return UICaseItemCluster(
+        label="Custom Search Performance Test", uiCaseItems=get_custom_case_items()
+    )
+
+
+UI_CASE_CLUSTERS: list[UICaseItemCluster] = [
+    UICaseItemCluster(
+        label="Search Performance Test",
+        uiCaseItems=[
+            UICaseItem(case_id=CaseType.Performance768D100M),
+            UICaseItem(case_id=CaseType.Performance768D10M),
+            UICaseItem(case_id=CaseType.Performance768D1M),
+            UICaseItem(isLine=True),
+            UICaseItem(case_id=CaseType.Performance1536D5M),
+            UICaseItem(case_id=CaseType.Performance1536D500K),
+            UICaseItem(case_id=CaseType.Performance1536D50K),
+        ],
+    ),
+    UICaseItemCluster(
+        label="Filter Search Performance Test",
+        uiCaseItems=[
+            UICaseItem(case_id=CaseType.Performance768D10M1P),
+            UICaseItem(case_id=CaseType.Performance768D10M99P),
+            UICaseItem(case_id=CaseType.Performance768D1M1P),
+            UICaseItem(case_id=CaseType.Performance768D1M99P),
+            UICaseItem(isLine=True),
+            UICaseItem(case_id=CaseType.Performance1536D5M1P),
+            UICaseItem(case_id=CaseType.Performance1536D5M99P),
+            UICaseItem(case_id=CaseType.Performance1536D500K1P),
+            UICaseItem(case_id=CaseType.Performance1536D500K99P),
+        ],
+    ),
+    UICaseItemCluster(
+        label="Capacity Test",
+        uiCaseItems=[
+            UICaseItem(case_id=CaseType.CapacityDim960),
+            UICaseItem(case_id=CaseType.CapacityDim128),
+        ],
+    ),
+]
+
+# DIVIDER = "DIVIDER"
+DISPLAY_CASE_ORDER: list[CaseType] = [
     CaseType.Performance768D100M,
     CaseType.Performance768D10M,
     CaseType.Performance768D1M,
-    DIVIDER,
     CaseType.Performance1536D5M,
     CaseType.Performance1536D500K,
-    DIVIDER,
+    CaseType.Performance1536D50K,
     CaseType.Performance768D10M1P,
     CaseType.Performance768D1M1P,
-    DIVIDER,
     CaseType.Performance1536D5M1P,
     CaseType.Performance1536D500K1P,
-    DIVIDER,
     CaseType.Performance768D10M99P,
     CaseType.Performance768D1M99P,
-    DIVIDER,
     CaseType.Performance1536D5M99P,
     CaseType.Performance1536D500K99P,
-    DIVIDER,
     CaseType.CapacityDim960,
     CaseType.CapacityDim128,
 ]
+CASE_NAME_ORDER = [case.case_cls().name for case in DISPLAY_CASE_ORDER]
 
-CASE_LIST = [item for item in CASE_LIST_WITH_DIVIDER if isinstance(item, CaseType)]
+# CASE_LIST = [
+#     item for item in CASE_LIST_WITH_DIVIDER if isinstance(item, CaseType)]
 
 
 class InputType(IntEnum):
     Text = 20001
     Number = 20002
     Option = 20003
+    Float = 20004
 
 
 class CaseConfigInput(BaseModel):
@@ -52,7 +158,7 @@ class CaseConfigInput(BaseModel):
     inputHelp: str = ""
     displayLabel: str = ""
     # todo type should be a function
-    isDisplayed: typing.Any = lambda x: True
+    isDisplayed: typing.Any = lambda config: True
 
 
 CaseConfigParamInput_IndexType = CaseConfigInput(
@@ -64,6 +170,7 @@ CaseConfigParamInput_IndexType = CaseConfigInput(
             IndexType.IVFFlat.value,
             IndexType.IVFSQ8.value,
             IndexType.DISKANN.value,
+            IndexType.STREAMING_DISKANN.value,
             IndexType.Flat.value,
             IndexType.AUTOINDEX.value,
             IndexType.GPU_IVF_FLAT.value,
@@ -71,6 +178,104 @@ CaseConfigParamInput_IndexType = CaseConfigInput(
             IndexType.GPU_CAGRA.value,
         ],
     },
+)
+
+
+CaseConfigParamInput_IndexType_PgVectorScale = CaseConfigInput(
+    label=CaseConfigParamType.IndexType,
+    inputHelp="Select Index Type",
+    inputType=InputType.Option,
+    inputConfig={
+        "options": [
+            IndexType.STREAMING_DISKANN.value,
+        ],
+    },
+)
+
+
+CaseConfigParamInput_storage_layout = CaseConfigInput(
+    label=CaseConfigParamType.storage_layout,
+    inputHelp="Select Storage Layout",
+    inputType=InputType.Option,
+    inputConfig={
+        "options": [
+            "memory_optimized",
+            "plain",
+        ],
+    },
+)
+
+CaseConfigParamInput_num_neighbors = CaseConfigInput(
+    label=CaseConfigParamType.num_neighbors,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 10,
+        "max": 300,
+        "value": 50,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.STREAMING_DISKANN.value,
+)
+
+CaseConfigParamInput_search_list_size = CaseConfigInput(
+    label=CaseConfigParamType.search_list_size,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 10,
+        "max": 300,
+        "value": 100,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.STREAMING_DISKANN.value,
+)
+
+CaseConfigParamInput_max_alpha = CaseConfigInput(
+    label=CaseConfigParamType.max_alpha,
+    inputType=InputType.Float,
+    inputConfig={
+        "min": 0.1,
+        "max": 2.0,
+        "value": 1.2,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.STREAMING_DISKANN.value,
+)
+
+CaseConfigParamInput_num_dimensions = CaseConfigInput(
+    label=CaseConfigParamType.num_dimensions,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 2000,
+        "value": 0,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.STREAMING_DISKANN.value,
+)
+
+CaseConfigParamInput_query_search_list_size = CaseConfigInput(
+    label=CaseConfigParamType.query_search_list_size,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 50,
+        "max": 150,
+        "value": 100,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.STREAMING_DISKANN.value,
+)
+
+
+CaseConfigParamInput_query_rescore = CaseConfigInput(
+    label=CaseConfigParamType.query_rescore,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 150,
+        "value": 50,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.STREAMING_DISKANN.value,
 )
 
 CaseConfigParamInput_IndexType_PgVector = CaseConfigInput(
@@ -81,6 +286,19 @@ CaseConfigParamInput_IndexType_PgVector = CaseConfigInput(
         "options": [
             IndexType.HNSW.value,
             IndexType.IVFFlat.value,
+        ],
+    },
+)
+
+CaseConfigParamInput_IndexType_PgVectoRS = CaseConfigInput(
+    label=CaseConfigParamType.IndexType,
+    inputHelp="Select Index Type",
+    inputType=InputType.Option,
+    inputConfig={
+        "options": [
+            IndexType.HNSW.value,
+            IndexType.IVFFlat.value,
+            IndexType.Flat.value,
         ],
     },
 )
@@ -145,7 +363,7 @@ CaseConfigParamInput_EFConstruction_ES = CaseConfigInput(
 CaseConfigParamInput_maintenance_work_mem_PgVector = CaseConfigInput(
     label=CaseConfigParamType.maintenance_work_mem,
     inputHelp="Recommended value: 1.33x the index size, not to exceed the available free memory."
-              "Specify in gigabytes. e.g. 8GB",
+    "Specify in gigabytes. e.g. 8GB",
     inputType=InputType.Text,
     inputConfig={
         "value": "8GB",
@@ -156,7 +374,7 @@ CaseConfigParamInput_max_parallel_workers_PgVector = CaseConfigInput(
     label=CaseConfigParamType.max_parallel_workers,
     displayLabel="Max parallel workers",
     inputHelp="Recommended value: (cpu cores - 1). This will set the parameters: max_parallel_maintenance_workers,"
-              " max_parallel_workers & table(parallel_workers)",
+    " max_parallel_workers & table(parallel_workers)",
     inputType=InputType.Number,
     inputConfig={
         "min": 0,
@@ -167,14 +385,26 @@ CaseConfigParamInput_max_parallel_workers_PgVector = CaseConfigInput(
 
 
 CaseConfigParamInput_EFConstruction_PgVectoRS = CaseConfigInput(
-    label=CaseConfigParamType.EFConstruction,
+    label=CaseConfigParamType.ef_construction,
     inputType=InputType.Number,
     inputConfig={
-        "min": 8,
-        "max": 512,
-        "value": 360,
+        "min": 10,
+        "max": 2000,
+        "value": 300,
     },
-    isDisplayed=lambda config: config[CaseConfigParamType.IndexType]
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
+    == IndexType.HNSW.value,
+)
+
+CaseConfigParamInput_EFSearch_PgVectoRS = CaseConfigInput(
+    label=CaseConfigParamType.ef_search,
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 1,
+        "max": 65535,
+        "value": 100,
+    },
+    isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
     == IndexType.HNSW.value,
 )
 
@@ -296,6 +526,7 @@ CaseConfigParamInput_M_PQ = CaseConfigInput(
     isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None)
     in [IndexType.GPU_IVF_PQ.value],
 )
+
 
 CaseConfigParamInput_Nbits_PQ = CaseConfigInput(
     label=CaseConfigParamType.nbits,
@@ -493,6 +724,7 @@ CaseConfigParamInput_EFSearch_PgVector = CaseConfigInput(
     == IndexType.HNSW.value,
 )
 
+
 CaseConfigParamInput_QuantizationType_PgVectoRS = CaseConfigInput(
     label=CaseConfigParamType.quantizationType,
     inputType=InputType.Option,
@@ -513,11 +745,24 @@ CaseConfigParamInput_QuantizationRatio_PgVectoRS = CaseConfigInput(
         "options": ["x4", "x8", "x16", "x32", "x64"],
     },
     isDisplayed=lambda config: config.get(CaseConfigParamType.quantizationType, None)
-    == "product" and config.get(CaseConfigParamType.IndexType, None)
+    == "product"
+    and config.get(CaseConfigParamType.IndexType, None)
     in [
         IndexType.HNSW.value,
         IndexType.IVFFlat.value,
     ],
+)
+
+CaseConfigParamInput_max_parallel_workers_PgVectorRS = CaseConfigInput(
+    label=CaseConfigParamType.max_parallel_workers,
+    displayLabel="Max parallel workers",
+    inputHelp="Recommended value: (cpu cores - 1). This will set the parameters: [optimizing.optimizing_threads]",
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 1024,
+        "value": 16,
+    },
 )
 
 CaseConfigParamInput_ZillizLevel = CaseConfigInput(
@@ -581,44 +826,67 @@ ESPerformanceConfig = [
     CaseConfigParamInput_NumCandidates_ES,
 ]
 
-PgVectorLoadingConfig = [CaseConfigParamInput_IndexType_PgVector,
-                         CaseConfigParamInput_Lists_PgVector,
-                         CaseConfigParamInput_m,
-                         CaseConfigParamInput_EFConstruction_PgVector,
-                         CaseConfigParamInput_maintenance_work_mem_PgVector,
-                         CaseConfigParamInput_max_parallel_workers_PgVector,
-                         ]
-PgVectorPerformanceConfig = [CaseConfigParamInput_IndexType_PgVector,
-                             CaseConfigParamInput_m,
-                             CaseConfigParamInput_EFConstruction_PgVector,
-                             CaseConfigParamInput_EFSearch_PgVector,
-                             CaseConfigParamInput_Lists_PgVector,
-                             CaseConfigParamInput_Probes_PgVector,
-                             CaseConfigParamInput_maintenance_work_mem_PgVector,
-                             CaseConfigParamInput_max_parallel_workers_PgVector,
-                             ]
+PgVectorLoadingConfig = [
+    CaseConfigParamInput_IndexType_PgVector,
+    CaseConfigParamInput_Lists_PgVector,
+    CaseConfigParamInput_m,
+    CaseConfigParamInput_EFConstruction_PgVector,
+    CaseConfigParamInput_maintenance_work_mem_PgVector,
+    CaseConfigParamInput_max_parallel_workers_PgVector,
+]
+PgVectorPerformanceConfig = [
+    CaseConfigParamInput_IndexType_PgVector,
+    CaseConfigParamInput_m,
+    CaseConfigParamInput_EFConstruction_PgVector,
+    CaseConfigParamInput_EFSearch_PgVector,
+    CaseConfigParamInput_Lists_PgVector,
+    CaseConfigParamInput_Probes_PgVector,
+    CaseConfigParamInput_maintenance_work_mem_PgVector,
+    CaseConfigParamInput_max_parallel_workers_PgVector,
+]
 
 PgVectoRSLoadingConfig = [
-    CaseConfigParamInput_IndexType,
-    CaseConfigParamInput_M,
+    CaseConfigParamInput_IndexType_PgVectoRS,
+    CaseConfigParamInput_m,
     CaseConfigParamInput_EFConstruction_PgVectoRS,
     CaseConfigParamInput_Nlist,
     CaseConfigParamInput_QuantizationType_PgVectoRS,
     CaseConfigParamInput_QuantizationRatio_PgVectoRS,
+    CaseConfigParamInput_max_parallel_workers_PgVectorRS,
 ]
 
 PgVectoRSPerformanceConfig = [
-    CaseConfigParamInput_IndexType,
-    CaseConfigParamInput_M,
+    CaseConfigParamInput_IndexType_PgVectoRS,
+    CaseConfigParamInput_m,
     CaseConfigParamInput_EFConstruction_PgVectoRS,
+    CaseConfigParamInput_EFSearch_PgVectoRS,
     CaseConfigParamInput_Nlist,
     CaseConfigParamInput_Nprobe,
     CaseConfigParamInput_QuantizationType_PgVectoRS,
     CaseConfigParamInput_QuantizationRatio_PgVectoRS,
+    CaseConfigParamInput_max_parallel_workers_PgVectorRS,
 ]
 
 ZillizCloudPerformanceConfig = [
     CaseConfigParamInput_ZillizLevel,
+]
+
+PgVectorScaleLoadingConfig = [
+    CaseConfigParamInput_IndexType_PgVectorScale,
+    CaseConfigParamInput_num_neighbors,
+    CaseConfigParamInput_storage_layout,
+    CaseConfigParamInput_search_list_size,
+    CaseConfigParamInput_max_alpha,
+]
+
+PgVectorScalePerformanceConfig = [
+    CaseConfigParamInput_IndexType_PgVectorScale,
+    CaseConfigParamInput_num_neighbors,
+    CaseConfigParamInput_storage_layout,
+    CaseConfigParamInput_search_list_size,
+    CaseConfigParamInput_max_alpha,
+    CaseConfigParamInput_query_rescore,
+    CaseConfigParamInput_query_search_list_size,
 ]
 
 CASE_CONFIG_MAP = {
@@ -644,5 +912,9 @@ CASE_CONFIG_MAP = {
     DB.PgVectoRS: {
         CaseLabel.Load: PgVectoRSLoadingConfig,
         CaseLabel.Performance: PgVectoRSPerformanceConfig,
+    },
+    DB.PgVectorScale: {
+        CaseLabel.Load: PgVectorScaleLoadingConfig,
+        CaseLabel.Performance: PgVectorScalePerformanceConfig,
     },
 }

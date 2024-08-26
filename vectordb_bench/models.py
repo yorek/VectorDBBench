@@ -2,7 +2,7 @@ import logging
 import pathlib
 from datetime import date
 from enum import Enum, StrEnum, auto
-from typing import List, Self, Sequence, Set
+from typing import List, Self
 
 import ujson
 
@@ -10,13 +10,11 @@ from .backend.clients import (
     DB,
     DBConfig,
     DBCaseConfig,
-    IndexType,
 )
 from .backend.cases import CaseType
 from .base import BaseModel
 from . import config
 from .metric import Metric
-
 
 log = logging.getLogger(__name__)
 
@@ -47,8 +45,8 @@ class CaseConfigParamType(Enum):
     numCandidates = "num_candidates"
     lists = "lists"
     probes = "probes"
-    quantizationType = "quantizationType"
-    quantizationRatio = "quantizationRatio"
+    quantizationType = "quantization_type"
+    quantizationRatio = "quantization_ratio"
     m = "m"
     nbits = "nbits"
     intermediate_graph_degree = "intermediate_graph_degree"
@@ -64,9 +62,23 @@ class CaseConfigParamType(Enum):
     level = "level"
     maintenance_work_mem = "maintenance_work_mem"
     max_parallel_workers = "max_parallel_workers"
+    storage_layout = "storage_layout"
+    num_neighbors = "num_neighbors"
+    search_list_size = "search_list_size"
+    max_alpha = "max_alpha"
+    num_dimensions = "num_dimensions"
+    num_bits_per_dimension = "num_bits_per_dimension"
+    query_search_list_size = "query_search_list_size"
+    query_rescore = "query_rescore"
+
 
 class CustomizedCase(BaseModel):
     pass
+
+
+class ConcurrencySearchConfig(BaseModel):
+    num_concurrency: List[int] = config.NUM_CONCURRENCY
+    concurrency_duration: int = config.CONCURRENCY_DURATION
 
 
 class CaseConfig(BaseModel):
@@ -74,6 +86,44 @@ class CaseConfig(BaseModel):
 
     case_id: CaseType
     custom_case: dict | None = None
+    k: int | None = config.K_DEFAULT
+    concurrency_search_config: ConcurrencySearchConfig = ConcurrencySearchConfig()
+
+    '''
+    @property
+    def k(self):
+        """K search parameter, default is config.K_DEFAULT"""
+        return self._k
+
+    #
+    @k.setter
+    def k(self, value):
+        self._k = value
+    '''
+
+    def __hash__(self) -> int:
+        return hash(self.json())
+
+
+class TaskStage(StrEnum):
+    """Enumerations of various stages of the task"""
+
+    DROP_OLD = auto()
+    LOAD = auto()
+    SEARCH_SERIAL = auto()
+    SEARCH_CONCURRENT = auto()
+
+    def __repr__(self) -> str:
+        return str.__repr__(self.value)
+
+
+# TODO: Add CapacityCase enums and adjust TaskRunner to utilize
+ALL_TASK_STAGES = [
+    TaskStage.DROP_OLD,
+    TaskStage.LOAD,
+    TaskStage.SEARCH_SERIAL,
+    TaskStage.SEARCH_CONCURRENT,
+]
 
 
 class TaskConfig(BaseModel):
@@ -81,12 +131,18 @@ class TaskConfig(BaseModel):
     db_config: DBConfig
     db_case_config: DBCaseConfig
     case_config: CaseConfig
+    stages: List[TaskStage] = ALL_TASK_STAGES
 
     @property
     def db_name(self):
-        db = self.db.value
+        db_name = f"{self.db.value}"
         db_label = self.db_config.db_label
-        return f"{db}-{db_label}" if db_label else db
+        if db_label:
+            db_name += f"-{db_label}"
+        version = self.db_config.version
+        if version:
+            db_name += f"-{version}"
+        return db_name
 
 
 class ResultLabel(Enum):

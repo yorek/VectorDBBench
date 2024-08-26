@@ -30,8 +30,12 @@ class DB(Enum):
     WeaviateCloud = "WeaviateCloud"
     PgVector = "PgVector"
     PgVectoRS = "PgVectoRS"
+    PgVectorScale = "PgVectorScale"
     Redis = "Redis"
+    MemoryDB = "MemoryDB"
     Chroma = "Chroma"
+    AWSOpenSearch = "OpenSearch"
+    Test = "test"
     MSSQL = "MSSQL"
 
     @property
@@ -72,14 +76,26 @@ class DB(Enum):
         if self == DB.PgVectoRS:
             from .pgvecto_rs.pgvecto_rs import PgVectoRS
             return PgVectoRS
+        
+        if self == DB.PgVectorScale:
+            from .pgvectorscale.pgvectorscale import PgVectorScale
+            return PgVectorScale
 
         if self == DB.Redis:
             from .redis.redis import Redis
             return Redis
+        
+        if self == DB.MemoryDB:
+            from .memorydb.memorydb import MemoryDB
+            return MemoryDB
 
         if self == DB.Chroma:
             from .chroma.chroma import ChromaClient
             return ChromaClient
+
+        if self == DB.AWSOpenSearch:
+            from .aws_opensearch.aws_opensearch import AWSOpenSearch
+            return AWSOpenSearch
 
     @property
     def config_cls(self) -> Type[DBConfig]:
@@ -120,13 +136,25 @@ class DB(Enum):
             from .pgvecto_rs.config import PgVectoRSConfig
             return PgVectoRSConfig
 
+        if self == DB.PgVectorScale:
+            from .pgvectorscale.config import PgVectorScaleConfig
+            return PgVectorScaleConfig
+
         if self == DB.Redis:
             from .redis.config import RedisConfig
             return RedisConfig
+        
+        if self == DB.MemoryDB:
+            from .memorydb.config import MemoryDBConfig
+            return MemoryDBConfig
 
         if self == DB.Chroma:
             from .chroma.config import ChromaConfig
             return ChromaConfig
+
+        if self == DB.AWSOpenSearch:
+            from .aws_opensearch.config import AWSOpenSearchConfig
+            return AWSOpenSearchConfig
 
     def case_config_cls(self, index_type: IndexType | None = None) -> Type[DBCaseConfig]:
         if self == DB.MSSQL:
@@ -160,6 +188,14 @@ class DB(Enum):
         if self == DB.PgVectoRS:
             from .pgvecto_rs.config import _pgvecto_rs_case_config
             return _pgvecto_rs_case_config.get(index_type)
+
+        if self == DB.AWSOpenSearch:
+            from .aws_opensearch.config import AWSOpenSearchIndexConfig
+            return AWSOpenSearchIndexConfig
+
+        if self == DB.PgVectorScale:
+            from .pgvectorscale.config import _pgvectorscale_case_config
+            return _pgvectorscale_case_config.get(index_type)
 
         # DB.Pinecone, DB.Chroma, DB.Redis
         return EmptyDBCaseConfig

@@ -46,7 +46,7 @@ DB_TO_ICON = {
     DB.PgVectoRS: "https://assets.zilliz.com/PG_Vector_d464f2ef5f.png",
     DB.Redis: "https://assets.zilliz.com/Redis_Cloud_74b8bfef39.png",
     DB.Chroma: "https://assets.zilliz.com/chroma_ceb3f06ed7.png",
-    DB.MSSQL: "https://azuresql.dev/assets/azure-sql-db-100x100.png"
+    DB.AWSOpenSearch: "https://assets.zilliz.com/opensearch_1eee37584e.jpeg",
 }
 
 # RedisCloud color: #0D6EFD
@@ -60,5 +60,5 @@ COLOR_MAP = {
     DB.WeaviateCloud.value: "#20C997",
     DB.PgVector.value: "#4C779A",
     DB.Redis.value: "#0D6EFD",
-    DB.MSSQL.value: "#4C779A"
+    DB.AWSOpenSearch.value: "#0DCAF0",
 }
