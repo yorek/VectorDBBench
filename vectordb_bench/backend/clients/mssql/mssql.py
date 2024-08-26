@@ -2,7 +2,7 @@
 
 import logging
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Generator, Optional, Tuple, Sequence
 
 from ..api import VectorDB, DBCaseConfig
 
@@ -89,7 +89,7 @@ class MSSQL(VectorDB):
         cnxn.close()
             
     @contextmanager
-    def init(self) -> None:
+    def init(self) -> Generator[None, None, None]:
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         self.cnxn = cnxn    
         cnxn.autocommit = True
@@ -131,7 +131,7 @@ class MSSQL(VectorDB):
         embeddings: list[list[float]],
         metadata: list[int],
         **kwargs: Any,
-    ) -> (int, Exception):        
+    ) -> Tuple[int, Optional[Exception]]:   
         try:            
             log.info(f'Loading batch of {len(metadata)} vectors...')
             #return len(metadata), None
@@ -163,38 +163,21 @@ class MSSQL(VectorDB):
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
-            # cursor.execute(f"""            
-            #     select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
-            #     """, 
-            #     k,                
-            #     int(filters.get('id')),
-            #     metric_function,
-            #     self.array_to_vector(query)
-            #     )
             cursor.execute(f"""            
-                select id from [{self.schema_name}].[{self.table_name}$hsnw_filter](?,?,?,?)
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
                 """, 
-                metric_function,
                 k,                
-                int(efSearch),
                 int(filters.get('id')),
+                metric_function,
                 self.array_to_vector(query)
                 )
         else:
-            # cursor.execute(f"""            
-            #     select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
-            #     """, 
-            #     k,                
-            #     metric_function,
-            #     self.array_to_vector(query)                
-            #     )
             cursor.execute(f"""            
-                select id from [{self.schema_name}].[{self.table_name}$hsnw_search](?,?,?,?)
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
                 """, 
-                metric_function,
                 k,                
-                int(efSearch),
-                self.array_to_vector(query)
+                metric_function,
+                self.array_to_vector(query)                
                 )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
