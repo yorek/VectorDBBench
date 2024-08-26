@@ -159,7 +159,7 @@ class MSSQL(VectorDB):
     ) -> list[int]:        
         search_param = self.case_config.search_param()
         metric_function = search_param["metric"]
-        efSearch = search_param["efSearch"]
+        #efSearch = search_param["efSearch"]
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
