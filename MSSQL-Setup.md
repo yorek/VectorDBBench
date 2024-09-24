@@ -51,3 +51,27 @@ pip install -e '.[mssql]'
 ```
 python -m vectordb_bench
 ```
+
+## Run VectorDBBench CLI
+
+### Arguments
+- server: host address
+- database: name of database
+- uid: user id
+- pwd: user password
+- concurency-duration: length (in seconds) to run benchmark, per user
+- num-concurrency - list of users to run the benchmark for
+- case-type: Benchmark to run, eg. Performance1536D500K, Performance768D1M
+- skip-drop-old: Drop old or skip  [default: drop-old]
+- skip-load: Load or skip  [default: load]
+
+### Load Database
+```
+vectordbbench mssql --case-type=Performance1536D500K --server=localhost --database=vectordb --pwd=password --uid=user_id--concurrency-duration 500 --num-concurrency '1, 3, 5'
+```
+
+### Skip Load Database
+```
+vectordbbench mssql --case-type=Performance1536D500K --server=localhost --database=vectordb --pwd=password --uid=user_id --skip-load --skip-drop-old --concurrency-duration 500 --num-concurrency '1, 3, 5'
+```
+
