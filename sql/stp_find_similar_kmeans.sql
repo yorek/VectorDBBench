@@ -1,5 +1,5 @@
 create or alter procedure [$vector].[stp_find_similar$vector_768$vector] 
-@v varbinary(8000),
+@v vector(768),
 @k int,
 @p int, 
 @m varchar(50) = 'cosine'

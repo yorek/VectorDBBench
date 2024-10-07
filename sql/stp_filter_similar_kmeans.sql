@@ -1,6 +1,6 @@
 create or alter procedure [$vector].[stp_filter_similar$vector_768$vector] 
 @id int, 
-@v varbinary(8000),
+@v vector(768),
 @k int,
 @p int, 
 @m varchar(50) = 'cosine'

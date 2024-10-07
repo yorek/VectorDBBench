@@ -1,4 +1,4 @@
-create or alter function [$vector].[find_similar$vector_768$vector] (@v varbinary(8000), @k int, @p int, @d float, @m varchar(50) = 'cosine')
+create or alter function [$vector].[find_similar$vector_768$vector] (@v vector(768), @k int, @p int, @d float, @m varchar(50) = 'cosine')
 returns table
 as return
 with cteProbes as
