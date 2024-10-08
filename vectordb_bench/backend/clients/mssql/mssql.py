@@ -50,14 +50,17 @@ class MSSQL(VectorDB):
             cnxn.commit()
 
         log.info(f"Creating vector table...")
-        cursor.execute(f""" 
+        create_table = f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
                     id int not null primary key clustered,
                     [vector] vector({self.dim}) not null
                 )                
             end
-        """)
+        """
+        log.info(f"vector table schema: {create_table}")   
+        cursor.execute(create_table)
+
         cnxn.commit()
             
         log.info(f"Creating table type...")
