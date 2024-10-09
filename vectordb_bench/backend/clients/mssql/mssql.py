@@ -65,13 +65,20 @@ class MSSQL(VectorDB):
             
         log.info(f"Creating table type...")
         cursor.execute(f""" 
-            if type_id('dbo.vector_payload') is null begin
+		    if type_id('dbo.vector_payload') is null begin
                 create type dbo.vector_payload as table
                 (
                     id int not null,
                     [vector] vector({self.dim}) not null
                 )
-            end
+            end else
+			  drop procedure if exists stp_load_vectors
+              drop type dbo.vector_payload
+                create type dbo.vector_payload as table
+                (
+                    id int not null,
+                    [vector] vector({self.dim}) not null
+                )
         """)
         cursor.commit()
 
