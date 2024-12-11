@@ -54,7 +54,7 @@ where object_id = object_id('[benchmark].[vector_768]')
 
 ----
 
-declare @v varbinary(8000)
+declare @v vector(1998)
 select @v = vector from benchmark.vector_768 where id = 1224
 
 select id from  [$vector].[find_similar$vector_768$vector](@v, 100, 30, 1, 'cosine')

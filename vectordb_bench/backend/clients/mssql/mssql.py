@@ -50,25 +50,28 @@ class MSSQL(VectorDB):
             cnxn.commit()
 
         log.info(f"Creating vector table...")
-        cursor.execute(f""" 
+        create_table = f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
                     id int not null primary key clustered,
-                    [vector] varbinary(8000) not null
+                    [vector] vector({self.dim}) not null
                 )                
             end
-        """)
+        """
+        log.info(f"vector table schema: {create_table}")   
+        cursor.execute(create_table)
+
         cnxn.commit()
             
         log.info(f"Creating table type...")
         cursor.execute(f""" 
-            if type_id('dbo.vector_payload') is null begin
+	      drop procedure if exists stp_load_vectors
+              drop type if exists dbo.vector_payload
                 create type dbo.vector_payload as table
                 (
                     id int not null,
-                    [vector] varbinary(8000) not null
+                    [vector] vector({self.dim}) not null
                 )
-            end
         """)
         cursor.commit()
 
@@ -80,7 +83,7 @@ class MSSQL(VectorDB):
             as
             begin
                 set nocount on
-                insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, [vector] from @payload;
+                insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, cast(cast([vector] as nvarchar(max)) as vector({self.dim})) from @payload;
             end
         """)
         cnxn.commit()
@@ -110,20 +113,18 @@ class MSSQL(VectorDB):
         log.info(f"MSSQL ready to search")
         pass
 
-    def array_to_vector(self, a:list[float]) -> bytearray:
-        # header
-        b = bytearray([169, 1])
+    def array_to_vector(self, a:list[float]) -> str:
+        # TODO, for now, create a string representation of the vector
+        # Cast that to VARCHAR and then to Vector, this is temporary
+        res = '['
+        
+        for f in a:
+            res += str(f) + ', '
 
-        # number of items
-        b += bytearray(struct.pack("i", len(a)))
-        pf = f"{len(a)}f"
+        res = res[:-2]
+        res += ']'
 
-        # filler
-        b += bytearray([0,0])
-
-        # items
-        b += bytearray(struct.pack(pf, *a))
-
+        return res
         return b
     
     def insert_embeddings(
@@ -164,7 +165,7 @@ class MSSQL(VectorDB):
         cursor = self.cursor
         if filters:
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
                 """, 
                 k,                
                 int(filters.get('id')),
@@ -172,13 +173,28 @@ class MSSQL(VectorDB):
                 self.array_to_vector(query)
                 )
         else:
-            cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
-                """, 
-                k,                
-                metric_function,
-                self.array_to_vector(query)                
+            cursor.execute(f"""
+SELECT * FROM 
+	VECTOR_SEARCH(
+		TABLE		= dbo.graphnode AS src,
+		COLUMN		= embedding,
+		SIMILAR_TO	= (SELECT embedding FROM GTQuery WHERE id = 1),
+		METRIC		= 'euclidean',
+		TOP_N		= ?
+) AS ann
+                """,
+                #self.array_to_vector(query),
+                #"'" + metric_function + "'",
+                k
                 )
+            # TODO: alter the id per user
+            #cursor.execute(f"""            
+            #    select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
+            #    """,
+            #    k,
+            #    metric_function,
+            #    self.array_to_vector(query)
+            #    )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return res
