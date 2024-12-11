@@ -173,13 +173,28 @@ class MSSQL(VectorDB):
                 self.array_to_vector(query)
                 )
         else:
-            cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
+            cursor.execute(f"""
+SELECT * FROM 
+	VECTOR_SEARCH(
+		TABLE		= dbo.graphnode AS src,
+		COLUMN		= embedding,
+		SIMILAR_TO	= (SELECT embedding FROM GTQuery WHERE id = 1),
+		METRIC		= 'euclidean',
+		TOP_N		= ?
+) AS ann
                 """,
-                k,
-                metric_function,
-                self.array_to_vector(query)
+                #self.array_to_vector(query),
+                #"'" + metric_function + "'",
+                k
                 )
+            # TODO: alter the id per user
+            #cursor.execute(f"""            
+            #    select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
+            #    """,
+            #    k,
+            #    metric_function,
+            #    self.array_to_vector(query)
+            #    )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return res
