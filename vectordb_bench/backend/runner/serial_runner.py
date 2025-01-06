@@ -59,6 +59,9 @@ class SerialInsertRunner:
                     log.info(f"({mp.current_process().name:16}) Loaded {count} embeddings into VectorDB")
 
             log.info(f"({mp.current_process().name:16}) Finish loading all dataset into VectorDB, dur={time.perf_counter()-start}")
+
+            self.db.create_index()
+
             return count
 
     def endless_insert_data(self, all_embeddings, all_metadata, left_id: int = 0) -> int:

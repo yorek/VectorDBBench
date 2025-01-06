@@ -8,6 +8,7 @@ from ..api import VectorDB, DBCaseConfig
 
 import pyodbc
 import struct
+import time
 
 log = logging.getLogger(__name__) 
 
@@ -30,7 +31,7 @@ class MSSQL(VectorDB):
         log.info("db_case_config: " + str(db_case_config))
 
         log.info(f"Connecting to MSSQL...")
-        #log.info(self.db_config['connection_string'])
+        
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
@@ -45,33 +46,33 @@ class MSSQL(VectorDB):
         if drop_old:
             log.info(f"Dropping existing table...")
             cursor.execute(f""" 
-                drop table if exists [{self.schema_name}].[{self.table_name}]
+                drop table if exists dbo.graphnode
             """)           
             cnxn.commit()
 
         log.info(f"Creating vector table...")
         create_table = f""" 
-            if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
-                create table [{self.schema_name}].[{self.table_name}] (
+            if object_id('dbo.graphnode') is null begin
+                create table dbo.graphnode (
                     id int not null primary key clustered,
-                    [vector] vector({self.dim}) not null
+                    embedding vector({self.dim}) not null
                 )                
             end
         """
         log.info(f"vector table schema: {create_table}")   
         cursor.execute(create_table)
-
         cnxn.commit()
-            
+
         log.info(f"Creating table type...")
         cursor.execute(f""" 
 	      drop procedure if exists stp_load_vectors
-              drop type if exists dbo.vector_payload
-                create type dbo.vector_payload as table
-                (
-                    id int not null,
-                    [vector] vector({self.dim}) not null
-                )
+          drop type if exists dbo.vector_payload
+          drop table if exists GTQuery
+          create type dbo.vector_payload as table
+            (
+                id int not null,
+                embedding vector({self.dim}) not null
+            )
         """)
         cursor.commit()
 
@@ -83,14 +84,32 @@ class MSSQL(VectorDB):
             as
             begin
                 set nocount on
-                insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, cast(cast([vector] as nvarchar(max)) as vector({self.dim})) from @payload;
+                insert into dbo.graphnode (id, embedding) select id, cast(cast([embedding] as nvarchar(max)) as vector({self.dim})) from @payload;
             end
         """)
         cnxn.commit()
 
+
+        #log.info(f"Creating Clustered Index on id...")
+        #cursor.execute(f""" 
+        #    CREATE UNIQUE CLUSTERED INDEX vec_id_idx ON graphnode (id)
+        #""")
+        #cnxn.commit()
+        
+        '''
+        log.info(f"Creating Vector Index...")
+        cursor.execute(f""" 
+            CREATE VECTOR INDEX vec_idx on [GRAPHNODE]([EMBEDDING]) WITH (METRIC = 'euclidean', TYPE = 'DiskANN', DROP_EXISTING = ON)
+        """)
+        cnxn.commit()
+
+        log.info(f"Wait for Vector Index Creation...")
+        time.sleep(1800)
+        log.info(f"Done Waiting for Vector Index Creation...")
+
+        '''
         cursor.close()
         cnxn.close()
-            
     @contextmanager
     def init(self) -> Generator[None, None, None]:
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
@@ -100,6 +119,27 @@ class MSSQL(VectorDB):
         yield 
         self.cursor.close()
         self.cnxn.close()
+
+    def create_index(self):
+        cnxn = pyodbc.connect(self.db_config['connection_string'])     
+        cursor = cnxn.cursor()
+        log.info(f"Creating Vector Index...")
+        cursor.execute(f""" 
+            CREATE VECTOR INDEX vec_idx on [GRAPHNODE]([EMBEDDING]) WITH (METRIC = 'euclidean', TYPE = 'DiskANN', DROP_EXISTING = ON)
+        """)
+        cnxn.commit()
+
+        log.info(f"Wait for Vector Index Creation...")
+        time.sleep(1800)
+        log.info(f"Done Waiting for Vector Index Creation...")
+
+        log.info(f"Creating Test Dataset...")
+        cursor.execute(f""" 
+            SELECT TOP 1 * INTO GTQuery FROM dbo.graphnode WHERE id = 1
+        """)
+        cnxn.commit()
+        cursor.close()
+        cnxn.close()
 
     def ready_to_load(self):
         log.info(f"MSSQL ready to load")
@@ -163,6 +203,11 @@ class MSSQL(VectorDB):
         #efSearch = search_param["efSearch"]
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
+        cnxn = pyodbc.connect(self.db_config['connection_string'])
+        self.cnxn = cnxn
+        cnxn.autocommit = True
+        self.cursor = cnxn.cursor()
+        cursor = self.cursor
         if filters:
             cursor.execute(f"""            
                 select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
@@ -174,14 +219,14 @@ class MSSQL(VectorDB):
                 )
         else:
             cursor.execute(f"""
-SELECT * FROM 
-	VECTOR_SEARCH(
-		TABLE		= dbo.graphnode AS src,
-		COLUMN		= embedding,
-		SIMILAR_TO	= (SELECT embedding FROM GTQuery WHERE id = 1),
-		METRIC		= 'euclidean',
-		TOP_N		= ?
-) AS ann
+                SELECT * FROM 
+                    VECTOR_SEARCH(
+                        TABLE		= dbo.graphnode AS src,
+                        COLUMN		= embedding,
+                        SIMILAR_TO	= (SELECT embedding FROM dbo.graphnode WHERE id = 1),
+                        METRIC		= 'euclidean',
+                        TOP_N		= ?
+                ) AS ann
                 """,
                 #self.array_to_vector(query),
                 #"'" + metric_function + "'",
@@ -197,6 +242,7 @@ SELECT * FROM
             #    )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
+        #quit()`
         return res
         
         
