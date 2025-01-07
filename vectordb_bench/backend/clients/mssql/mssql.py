@@ -219,7 +219,7 @@ class MSSQL(VectorDB):
                 )
         else:
             cursor.execute(f"""
-                SELECT * FROM 
+                SELECT ann.id FROM 
                     VECTOR_SEARCH(
                         TABLE		= dbo.graphnode AS src,
                         COLUMN		= embedding,
