@@ -7,7 +7,7 @@ from typing import Any, Generator, Optional, Tuple, Sequence
 from ..api import VectorDB, DBCaseConfig
 
 import pyodbc
-import struct
+import json
 
 log = logging.getLogger(__name__) 
 
@@ -30,7 +30,7 @@ class MSSQL(VectorDB):
         log.info("db_case_config: " + str(db_case_config))
 
         log.info(f"Connecting to MSSQL...")
-        #log.info(self.db_config['connection_string'])
+        log.info(self.db_config['connection_string'])
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
@@ -54,7 +54,7 @@ class MSSQL(VectorDB):
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
                     id int not null primary key clustered,
-                    [vector] varbinary(8000) not null
+                    [vector] vector({self.dim}) not null
                 )                
             end
         """)
@@ -66,7 +66,7 @@ class MSSQL(VectorDB):
                 create type dbo.vector_payload as table
                 (
                     id int not null,
-                    [vector] varbinary(8000) not null
+                    [vector] vector({self.dim}) not null
                 )
             end
         """)
@@ -109,22 +109,6 @@ class MSSQL(VectorDB):
     def ready_to_search(self):
         log.info(f"MSSQL ready to search")
         pass
-
-    def array_to_vector(self, a:list[float]) -> bytearray:
-        # header
-        b = bytearray([169, 1])
-
-        # number of items
-        b += bytearray(struct.pack("i", len(a)))
-        pf = f"{len(a)}f"
-
-        # filler
-        b += bytearray([0,0])
-
-        # items
-        b += bytearray(struct.pack(pf, *a))
-
-        return b
     
     def insert_embeddings(
         self,
@@ -137,13 +121,13 @@ class MSSQL(VectorDB):
             #return len(metadata), None
         
             log.info(f'Generating param list...')
-            params = [(metadata[i], self.array_to_vector(embeddings[i])) for i in range(len(metadata))]
+            params = [(metadata[i], json.dumps(embeddings[i])) for i in range(len(metadata))]
 
             log.info(f'Loading table...')
             cursor = self.cursor
             #cursor.fast_executemany = True               
             cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))     
-
+            #cursor.executemany (f"insert into [{self.schema_name}].[{self.table_name}] (id, vector) values(?, ?);", params)
             return len(metadata), None
         except Exception as e:
             #cursor.rollback()
