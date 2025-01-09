@@ -124,10 +124,8 @@ class MSSQL(VectorDB):
             params = [(metadata[i], json.dumps(embeddings[i])) for i in range(len(metadata))]
 
             log.info(f'Loading table...')
-            cursor = self.cursor
-            #cursor.fast_executemany = True               
+            cursor = self.cursor          
             cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))     
-            #cursor.executemany (f"insert into [{self.schema_name}].[{self.table_name}] (id, vector) values(?, ?);", params)
             return len(metadata), None
         except Exception as e:
             #cursor.rollback()
@@ -148,20 +146,20 @@ class MSSQL(VectorDB):
         cursor = self.cursor
         if filters:
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), ?, v.[vector])
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
                 """, 
                 k,                
                 int(filters.get('id')),
                 metric_function,
-                self.array_to_vector(query)
+                json.dumps(query)
                 )
         else:
             cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(cast(? as varchar(20)), ?, v.[vector]) 
+                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(?, cast(? as vector({self.dim})), v.[vector]) 
                 """, 
                 k,                
                 metric_function,
-                self.array_to_vector(query)                
+                json.dumps(query)                
                 )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
