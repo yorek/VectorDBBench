@@ -1,12 +1,31 @@
-from pydantic import BaseModel, SecretStr
-from ..api import DBConfig, DBCaseConfig, MetricType, IndexType
+from pydantic import BaseModel, SecretStr, validator
+
+from ..api import DBCaseConfig, DBConfig, IndexType, MetricType
 
 
 class MilvusConfig(DBConfig):
     uri: SecretStr = "http://localhost:19530"
+    user: str | None = None
+    password: SecretStr | None = None
 
     def to_dict(self) -> dict:
-        return {"uri": self.uri.get_secret_value()}
+        return {
+            "uri": self.uri.get_secret_value(),
+            "user": self.user if self.user else None,
+            "password": self.password.get_secret_value() if self.password else None,
+        }
+
+    @validator("*")
+    def not_empty_field(cls, v: any, field: any):
+        if (
+            field.name in cls.common_short_configs()
+            or field.name in cls.common_long_configs()
+            or field.name in ["user", "password"]
+        ):
+            return v
+        if isinstance(v, str | SecretStr) and len(v) == 0:
+            raise ValueError("Empty string!")
+        return v
 
 
 class MilvusIndexConfig(BaseModel):
@@ -14,10 +33,14 @@ class MilvusIndexConfig(BaseModel):
 
     index: IndexType
     metric_type: MetricType | None = None
-    
+
     @property
     def is_gpu_index(self) -> bool:
-        return self.index in [IndexType.GPU_CAGRA, IndexType.GPU_IVF_FLAT, IndexType.GPU_IVF_PQ]
+        return self.index in [
+            IndexType.GPU_CAGRA,
+            IndexType.GPU_IVF_FLAT,
+            IndexType.GPU_IVF_PQ,
+        ]
 
     def parse_metric(self) -> str:
         if not self.metric_type:
@@ -99,7 +122,8 @@ class IVFFlatConfig(MilvusIndexConfig, DBCaseConfig):
             "metric_type": self.parse_metric(),
             "params": {"nprobe": self.nprobe},
         }
-        
+
+
 class IVFSQ8Config(MilvusIndexConfig, DBCaseConfig):
     nlist: int
     nprobe: int | None = None
@@ -196,7 +220,7 @@ class GPUCAGRAConfig(MilvusIndexConfig, DBCaseConfig):
     search_width: int = 4
     min_iterations: int = 0
     max_iterations: int = 0
-    build_algo: str = "IVF_PQ" # IVF_PQ; NN_DESCENT;
+    build_algo: str = "IVF_PQ"  # IVF_PQ; NN_DESCENT;
     cache_dataset_on_device: str
     refine_ratio: float | None = None
     index: IndexType = IndexType.GPU_CAGRA

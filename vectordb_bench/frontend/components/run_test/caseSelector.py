@@ -1,6 +1,4 @@
-
 from vectordb_bench.frontend.config.styles import *
-from vectordb_bench.backend.cases import CaseType
 from vectordb_bench.frontend.config.dbCaseConfigs import *
 from collections import defaultdict
 
@@ -23,8 +21,7 @@ def caseSelector(st, activedDbList: list[DB]):
     dbToCaseConfigs = defaultdict(lambda: defaultdict(dict))
     caseClusters = UI_CASE_CLUSTERS + [get_custom_case_cluter()]
     for caseCluster in caseClusters:
-        activedCaseList += caseClusterExpander(
-            st, caseCluster, dbToCaseClusterConfigs, activedDbList)
+        activedCaseList += caseClusterExpander(st, caseCluster, dbToCaseClusterConfigs, activedDbList)
     for db in dbToCaseClusterConfigs:
         for uiCaseItem in dbToCaseClusterConfigs[db]:
             for case in uiCaseItem.cases:
@@ -40,8 +37,7 @@ def caseClusterExpander(st, caseCluster: UICaseItemCluster, dbToCaseClusterConfi
         if uiCaseItem.isLine:
             addHorizontalLine(expander)
         else:
-            activedCases += caseItemCheckbox(expander,
-                                             dbToCaseClusterConfigs, uiCaseItem, activedDbList)
+            activedCases += caseItemCheckbox(expander, dbToCaseClusterConfigs, uiCaseItem, activedDbList)
     return activedCases
 
 
@@ -53,9 +49,7 @@ def caseItemCheckbox(st, dbToCaseClusterConfigs, uiCaseItem: UICaseItem, actived
     )
 
     if selected:
-        caseConfigSetting(
-            st.container(), dbToCaseClusterConfigs, uiCaseItem, activedDbList
-        )
+        caseConfigSetting(st.container(), dbToCaseClusterConfigs, uiCaseItem, activedDbList)
 
     return uiCaseItem.cases if selected else []
 
@@ -107,6 +101,12 @@ def caseConfigSetting(st, dbToCaseClusterConfigs, uiCaseItem: UICaseItem, active
                         min_value=config.inputConfig["min"],
                         max_value=config.inputConfig["max"],
                         key=key,
+                        value=config.inputConfig["value"],
+                        help=config.inputHelp,
+                    )
+                elif config.inputType == InputType.Bool:
+                    caseConfig[config.label] = column.checkbox(
+                        config.displayLabel if config.displayLabel else config.label.value,
                         value=config.inputConfig["value"],
                         help=config.inputHelp,
                     )
