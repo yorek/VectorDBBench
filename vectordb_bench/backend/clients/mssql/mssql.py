@@ -35,6 +35,16 @@ class MSSQL(VectorDB):
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
+        log.info(f"Start Prepare")
+        cursor.prepareStatement("SELECT ?", [1])
+        ret = cursor.executePreparedStatement("SELECT ?", [2])
+        rows = cursor.fetchall()
+        res = [row for row in rows]
+        
+        cnxn.commit()
+
+        log.info(res)
+
         log.info(f"Creating schema...")
         cursor.execute(f""" 
             if (schema_id('{self.schema_name}') is null) begin
@@ -130,7 +140,7 @@ class MSSQL(VectorDB):
         cnxn.commit()
 
         log.info(f"Wait for Vector Index Creation...")
-        time.sleep(1800)
+        #time.sleep(1800)
         log.info(f"Done Waiting for Vector Index Creation...")
 
         log.info(f"Creating Test Dataset...")
@@ -203,11 +213,11 @@ class MSSQL(VectorDB):
         #efSearch = search_param["efSearch"]
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
-        cnxn = pyodbc.connect(self.db_config['connection_string'])
-        self.cnxn = cnxn
-        cnxn.autocommit = True
-        self.cursor = cnxn.cursor()
-        cursor = self.cursor
+        #cnxn = pyodbc.connect(self.db_config['connection_string'])
+        #self.cnxn = cnxn
+        #cnxn.autocommit = True
+        #self.cursor = cnxn.cursor()
+        #cursor = self.cursor
         if filters:
             cursor.execute(f"""            
                 select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
