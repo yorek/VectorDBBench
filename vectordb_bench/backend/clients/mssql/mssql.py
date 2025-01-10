@@ -107,8 +107,10 @@ class MSSQL(VectorDB):
         log.info(f"MSSQL ready to load")
         pass
 
-    def optimize(self):
+    def optimize(self):        
         log.info(f"MSSQL optimize")
+        search_param = self.case_config.search_param()
+        metric_function = search_param["metric"]
         cursor = self.cursor
         if self.drop_old:
             cursor.execute(f"""            
@@ -120,7 +122,7 @@ class MSSQL(VectorDB):
                 )
         
         cursor.execute(f"""            
-            create vector index vec_idx on [benchmark].[vector_1536]([vector]) with (metric = 'cosine', type = 'DiskANN'); 
+            create vector index vec_idx on [{self.schema_name}].[{self.table_name}]([vector]) with (metric = '{metric_function}', type = 'DiskANN'); 
             """                
             )
 
