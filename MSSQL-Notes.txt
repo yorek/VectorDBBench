@@ -2,7 +2,6 @@ create login benchmark with password = 'BOR23bSu0ZsDc9zR8wdHn2w0P5yoEbBD';
 create user benchmark for login benchmark;
 alter role db_owner add member benchmark;
 
-
 ---
 
 to connect to SQL Server from WSL2 get the hostname (cannot use "localhost")
@@ -14,9 +13,8 @@ echo  $(hostname).local
 LAPTOP-DM-2.local
 vectordb
 
- export LOG_LEVEL="DEBUG"
+export LOG_LEVEL="DEBUG"
 --
-
 
 install odbc if in linux
 
