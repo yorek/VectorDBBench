@@ -163,21 +163,44 @@ class MSSQL(VectorDB):
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
-            cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
+            # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
+            cursor.execute(f"""        
+                select 
+                    t.id
+                from
+                    vector_search(
+                        table = [{self.schema_name}].[{self.table_name}] AS t, 
+                        column = [vector], 
+                        similar_to = ?,
+                        metric = '{metric_function}', 
+                        top_n = ?
+                    ) AS s
+                where
+                    v.id >= ?                
                 """, 
-                k,                
-                int(filters.get('id')),
-                metric_function,
-                json.dumps(query)
+                json.dumps(query),                      
+                k,                    
+                int(filters.get('id')),                                  
                 )
         else:
-            cursor.execute(f"""            
-                select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(?, cast(? as vector({self.dim})), v.[vector]) 
+            # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(?, cast(? as vector({self.dim})), v.[vector]) 
+            cursor.execute(f"""
+                declare @v vector({self.dim}) = ?;        
+                select 
+                    t.id
+                from
+                    vector_search(
+                        table = [{self.schema_name}].[{self.table_name}] AS t, 
+                        column = [vector], 
+                        similar_to = @v,
+                        metric = '{metric_function}', 
+                        top_n = ?
+                    ) AS s
+                order by
+                    t.id   
                 """, 
-                k,                
-                metric_function,
-                json.dumps(query)                
+                json.dumps(query),      
+                k,                                                      
                 )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
