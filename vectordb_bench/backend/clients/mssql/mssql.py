@@ -35,15 +35,6 @@ class MSSQL(VectorDB):
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
-        log.info(f"Start Prepare")
-        cursor.prepareStatement("SELECT ?", [1])
-        ret = cursor.executePreparedStatement("SELECT ?", [2])
-        rows = cursor.fetchall()
-        res = [row for row in rows]
-        
-        cnxn.commit()
-
-        log.info(res)
 
         log.info(f"Creating schema...")
         cursor.execute(f""" 
@@ -118,8 +109,10 @@ class MSSQL(VectorDB):
         log.info(f"Done Waiting for Vector Index Creation...")
 
         '''
-        cursor.close()
-        cnxn.close()
+        self.cursor = cursor
+        self.cnxn = cnxn
+        #cursor.close()
+        #cnxn.close()
     @contextmanager
     def init(self) -> Generator[None, None, None]:
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
@@ -148,8 +141,8 @@ class MSSQL(VectorDB):
             SELECT TOP 1 * INTO GTQuery FROM dbo.graphnode WHERE id = 1
         """)
         cnxn.commit()
-        cursor.close()
-        cnxn.close()
+        #cursor.close()
+        #cnxn.close()
 
     def ready_to_load(self):
         log.info(f"MSSQL ready to load")
@@ -212,12 +205,13 @@ class MSSQL(VectorDB):
         metric_function = search_param["metric"]
         #efSearch = search_param["efSearch"]
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
+        #cursor = self.cursor
+        cnxn = pyodbc.connect(self.db_config['connection_string'])
+        self.cnxn = cnxn
+        cnxn.autocommit = True
+        self.cursor = cnxn.cursor()
+        #cnxn = self.cnxn
         cursor = self.cursor
-        #cnxn = pyodbc.connect(self.db_config['connection_string'])
-        #self.cnxn = cnxn
-        #cnxn.autocommit = True
-        #self.cursor = cnxn.cursor()
-        #cursor = self.cursor
         if filters:
             cursor.execute(f"""            
                 select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(cast(? as varchar(20)), cast(cast(? as nvarchar(max)) as vector({self.dim})), v.[vector])
