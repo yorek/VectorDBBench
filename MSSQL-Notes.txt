@@ -43,6 +43,7 @@ python -m vectordb_bench
 
 export DROP_OLD=True|False
 export export NUM_PER_BATCH=50000 (default is 5000)
+export NUM_CONCURRENCY=5,10,25,50
 
 check windows firewall if cannot connect to sql
 
