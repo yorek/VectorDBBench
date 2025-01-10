@@ -26,11 +26,12 @@ class MSSQL(VectorDB):
         self.table_name = collection_name + "_" + str(dim)
         self.dim = dim
         self.schema_name = "benchmark"
+        self.drop_old = drop_old
 
         log.info("db_case_config: " + str(db_case_config))
 
         log.info(f"Connecting to MSSQL...")
-        log.info(self.db_config['connection_string'])
+        #log.info(self.db_config['connection_string'])
         cnxn = pyodbc.connect(self.db_config['connection_string'])     
         cursor = cnxn.cursor()
 
@@ -94,9 +95,13 @@ class MSSQL(VectorDB):
         self.cnxn = cnxn    
         cnxn.autocommit = True
         self.cursor = cnxn.cursor()
-        yield 
-        self.cursor.close()
-        self.cnxn.close()
+        try:
+            yield
+        finally: 
+            self.cursor.close()
+            self.cnxn.close()
+            self.cursor = None
+            self.cnxn = None
 
     def ready_to_load(self):
         log.info(f"MSSQL ready to load")
@@ -104,7 +109,20 @@ class MSSQL(VectorDB):
 
     def optimize(self):
         log.info(f"MSSQL optimize")
-        pass
+        cursor = self.cursor
+        if self.drop_old:
+            cursor.execute(f"""            
+                if exists(select * from sys.indexes where object_id = object_id('[{self.schema_name}].[{self.table_name}]') and type=8)
+                begin
+                    drop index vec_idx on [{self.schema_name}].[{self.table_name}];
+                end
+                """, 
+                )
+        
+        cursor.execute(f"""            
+            create vector index vec_idx on [benchmark].[vector_1536]([vector]) with (metric = 'cosine', type = 'DiskANN'); 
+            """                
+            )
 
     def ready_to_search(self):
         log.info(f"MSSQL ready to search")
