@@ -28,7 +28,10 @@ class MSSQLTypedDict(CommonTypedDict):
         str,
         click.option("--pwd", type=str, help="user password", required=True),
     ]
-
+    metric: Annotated[
+        str,
+        click.option("--metric", type=str, help="distance metric", required=True),
+    ]
 
 
 @cli.command()
@@ -42,7 +45,8 @@ def MSSQL(**parameters: Unpack[MSSQLTypedDict]):
             server=parameters["server"],
             database=parameters["database"],
             uid=parameters["uid"],
-            pwd=parameters["pwd"],              
+            pwd=parameters["pwd"],
+            metric=parameters["metric"]
         ),
         db_case_config=MSSQLVectorIndexConfig(
 

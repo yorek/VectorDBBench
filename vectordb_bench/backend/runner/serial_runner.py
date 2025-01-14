@@ -60,7 +60,6 @@ class SerialInsertRunner:
 
             log.info(f"({mp.current_process().name:16}) Finish loading all dataset into VectorDB, dur={time.perf_counter()-start}")
 
-            self.db.create_index()
 
             return count
 
