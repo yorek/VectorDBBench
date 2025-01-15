@@ -32,7 +32,7 @@ class MSSQL(VectorDB):
 
         log.info(f"Connecting to MSSQL...")
         #log.info(self.db_config['connection_string'])
-        cnxn = pyodbc.connect(self.db_config['connection_string'])     
+        cnxn = pyodbc.connect(self.db_config['connection_string'] + ';LongAsMax=yes;')     
         cursor = cnxn.cursor()
 
         log.info(f"Creating schema...")
@@ -81,7 +81,7 @@ class MSSQL(VectorDB):
             as
             begin
                 set nocount on
-                insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, [vector] from @payload;
+                insert into [{self.schema_name}].[{self.table_name}] (id, [vector]) select id, [vector] from @payload;
             end
         """)
         cnxn.commit()
@@ -91,7 +91,7 @@ class MSSQL(VectorDB):
             
     @contextmanager
     def init(self) -> Generator[None, None, None]:
-        cnxn = pyodbc.connect(self.db_config['connection_string'])     
+        cnxn = pyodbc.connect(self.db_config['connection_string'] + ';LongAsMax=yes;')     
         self.cnxn = cnxn    
         cnxn.autocommit = True
         self.cursor = cnxn.cursor()
@@ -151,7 +151,8 @@ class MSSQL(VectorDB):
             #cursor.rollback()
             log.warning(f"Failed to insert data into vector table ([{self.schema_name}].[{self.table_name}]), error: {e}")   
             return 0, e
-
+    
+    @staticmethod
     def search_embedding(        
         self,
         query: list[float],
@@ -160,7 +161,7 @@ class MSSQL(VectorDB):
         timeout: int | None = None,
     ) -> list[int]:        
         search_param = self.case_config.search_param()
-        metric_function = search_param["metric"]
+        metric_function = 'euclidean' #search_param["metric"]
         #efSearch = search_param["efSearch"]
         #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
