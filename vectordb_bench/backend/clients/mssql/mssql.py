@@ -152,7 +152,6 @@ class MSSQL(VectorDB):
             log.warning(f"Failed to insert data into vector table ([{self.schema_name}].[{self.table_name}]), error: {e}")   
             return 0, e
     
-    @staticmethod
     def search_embedding(        
         self,
         query: list[float],
