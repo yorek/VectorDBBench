@@ -122,7 +122,7 @@ class MSSQL(VectorDB):
                 )
         
         cursor.execute(f"""            
-            create vector index vec_idx on [{self.schema_name}].[{self.table_name}]([vector]) with (metric = '{metric_function}', type = 'DiskANN'); 
+            create vector index vec_idx on [{self.schema_name}].[{self.table_name}]([vector]) with (metric = 'euclidean', type = 'DiskANN'); 
             """                
             )
 
