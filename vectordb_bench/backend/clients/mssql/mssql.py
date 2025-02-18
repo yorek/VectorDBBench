@@ -50,6 +50,7 @@ class MSSQL(VectorDB):
             """)           
             cnxn.commit()
 
+
         log.info(f"Creating vector table...")
         cursor.execute(f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
@@ -60,7 +61,14 @@ class MSSQL(VectorDB):
             end
         """)
         cnxn.commit()
-            
+ 
+        log.info(f"Dropping old loading vector table type and stored procedure")
+        cursor.execute(f"""
+            drop procedure if exists stp_load_vectors
+            drop type if exists dbo.vector_payload
+        """)
+        cnxn.commit()
+           
         log.info(f"Creating table type...")
         cursor.execute(f""" 
             if type_id('dbo.vector_payload') is null begin
@@ -160,9 +168,8 @@ class MSSQL(VectorDB):
         timeout: int | None = None,
     ) -> list[int]:        
         search_param = self.case_config.search_param()
-        metric_function = 'euclidean' #search_param["metric"]
+        metric_function = search_param["metric"]
         #efSearch = search_param["efSearch"]
-        #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
             # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
