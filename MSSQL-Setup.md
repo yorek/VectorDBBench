@@ -1,4 +1,4 @@
-# Run VectorDBBench agains MSSQL database
+# Run VectorDBBench against MSSQL database
 
 VectorDBBench has been tested running on WSL2 + Ubuntu 22.04.4 LTS.
 
@@ -22,20 +22,6 @@ curl -sS https://bootstrap.pypa.io/get-pip.py | python3.11
 ## Clone the repository
 
 Clone the repository into a local folder
-
-## Create Virtual Environment
-
-In local folder where you have cloned the repository, create a virtual environment:
-
-```
-python3.11 -m venv .venv
-```
-
-then activate it:
-
-```
-. ./.venv/bin/activate
-```
 
 ## Install VectorDBBench dependencies
 
