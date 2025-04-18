@@ -48,14 +48,12 @@ The database must exist and there must be enough room to build the index
 
 ```
 vectordbbench mssql --database=vectordb --server=**IP_ADDRESS** --uid=sa --pwd=**PASSWORD_HERE**  --concurrency-duration=1800 --skip-search-concurrent --case-type=Performance1536D500K 
-
 ```
 
 ## Run VectorDBBench on the Command Line Interface with Existing Data
 
 ```
 vectordbbench mssql --database=vectordb --server=**IP_ADDRESS** --uid=sa --pwd=**PASSWORD_HERE**  --concurrency-duration=1800 --skip-search-concurrent --case-type=Performance1536D500K 
-
 ```
 
 ## Start VectorDBBench in the GUI Mode
