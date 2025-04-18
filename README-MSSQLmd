@@ -37,19 +37,28 @@ pip install -e '.[mssql]'
 ```
 
 
-## Run VectorDBBench with help
+## Run VectorDBBench on the Command Line Interface with help
 
 ```
 vectordbbench mssql --help
 ```
 
-## Run VectorDBBench
+## Run VectorDBBench on the Command Line Interface
+The database must exist and there must be enough room to build the index
+
 ```
-vectordbbench mssql --database=vectordb --server=10.177.3.78 --uid=sa --pwd=--concurrency-duration=1800 --skip-search-concurrent --case-type=Performance1536D500K --skip-load --skip-drop-old
+vectordbbench mssql --database=vectordb --server=**IP_ADDRESS** --uid=sa --pwd=**PASSWORD_HERE**  --concurrency-duration=1800 --skip-search-concurrent --case-type=Performance1536D500K 
 
 ```
 
-## Start the Server
+## Run VectorDBBench on the Command Line Interface with Existing Data
+
+```
+vectordbbench mssql --database=vectordb --server=**IP_ADDRESS** --uid=sa --pwd=**PASSWORD_HERE**  --concurrency-duration=1800 --skip-search-concurrent --case-type=Performance1536D500K 
+
+```
+
+## Start VectorDBBench in the GUI Mode
 ```
 python -m vectordb_bench
 ```
