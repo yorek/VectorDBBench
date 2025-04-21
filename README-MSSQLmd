@@ -29,11 +29,12 @@ Clone the repository into a local folder
 
 ## Install VectorDBBench dependencies
 
-Install the VectorDBBench dependencies
+Change directoies into VectorDBBench and Install the VectorDBBench and its dependencies
 
 ```
-pip install -e '.[test]'
-pip install -e '.[mssql]'
+cd VectorDBBench
+pip install pyodbc
+pip install .
 ```
 
 
