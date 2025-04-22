@@ -44,7 +44,7 @@ class MSSQL(VectorDB):
         cnxn.commit()
         
         if drop_old:
-            log.info(f"Dropping existing table...")
+            log.info(f"Dropping existing table... drop table if exists [{self.schema_name}].[{self.table_name}] ")
             cursor.execute(f""" 
                 drop table if exists [{self.schema_name}].[{self.table_name}]
             """)           
