@@ -22,11 +22,15 @@ class MSSQLTypedDict(CommonTypedDict):
     ]
     uid: Annotated[
         str,
-        click.option("--uid", type=str, help="User id", required=True),
+        click.option("--uid", type=str, help="User id", required=False),
     ]
     pwd: Annotated[
         str,
-        click.option("--pwd", type=str, help="user password", required=True),
+        click.option("--pwd", type=str, help="user password", required=False),
+    ]
+    entraid: Annotated[
+        str,
+        click.option("--entraid", type=str, help="Entra Id Authentication", required=False),
     ]
 
 
@@ -43,6 +47,7 @@ def MSSQL(**parameters: Unpack[MSSQLTypedDict]):
             database=parameters["database"],
             uid=parameters["uid"],
             pwd=parameters["pwd"],
+            entraid=parameters["entraid"]
         ),
         db_case_config=MSSQLVectorIndexConfig(
 

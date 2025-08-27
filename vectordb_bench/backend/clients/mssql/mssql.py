@@ -32,7 +32,10 @@ class MSSQL(VectorDB):
 
         log.info(f"Connecting to MSSQL...")
         #log.info(self.db_config['connection_string'])
-        cnxn = pyodbc.connect(self.db_config['connection_string'])
+        cnxn = pyodbc.connect(
+            self.db_config.get("connection_string"),
+            attrs_before=self.db_config.get("attrs_before")
+        )
         cursor = cnxn.cursor()
 
         log.info(f"Creating schema...")
@@ -99,7 +102,10 @@ class MSSQL(VectorDB):
             
     @contextmanager
     def init(self) -> Generator[None, None, None]:
-        cnxn = pyodbc.connect(self.db_config['connection_string'])
+        cnxn = pyodbc.connect(
+            self.db_config.get("connection_string"),
+            attrs_before=self.db_config.get("attrs_before")
+        )
         self.cnxn = cnxn    
         cnxn.autocommit = True
         self.cursor = cnxn.cursor()

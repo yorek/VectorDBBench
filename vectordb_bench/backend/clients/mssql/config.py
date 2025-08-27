@@ -1,18 +1,80 @@
+import pyodbc
+import struct
+from azure.identity import ManagedIdentityCredential
 from pydantic import BaseModel, SecretStr
+from typing import Optional
 from ..api import DBConfig, DBCaseConfig, MetricType
-
 MSSQL_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s;LongAsMax=yes;Connect Timeout=30;TrustServerCertificate=Yes"
+
+MSSQL_ENTRA_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;AUTHENTICATION=ActiveDirectoryMsi;UID=%s;LongAsMax=yes;Connect Timeout=30;Encrypt=yes;TrustServerCertificate=Yes"
+
+#MSSQL_ENTRA_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;AUTHENTICATION=ActiveDirectoryServicePrincipal;UID=%s;PWD=%s;LongAsMax=yes;Connect Timeout=30;Encrypt=yes;TrustServerCertificate=No"
+
+# --- Constants for Token Authentication ---
+SQL_COPT_SS_ACCESS_TOKEN = 1256 
+SQL_SERVER_TOKEN_SCOPE = "https://database.windows.net/.default"
+
+# --- Your Modified MSSQLConfig Class ---
 
 class MSSQLConfig(DBConfig):
     server: str
     database: str
-    uid: str
-    pwd: SecretStr    
+    uid: Optional[str] = None
+    pwd: Optional[SecretStr] = None
+    entraid: Optional[str] = None
 
     def to_dict(self) -> dict:
-        pwd_str = self.pwd.get_secret_value()
+        """
+        Prepares connection parameters. If entraid is provided, it fetches a token
+        manually and returns connection attributes for pyodbc.
+        """
+        # --- Case 1: Standard SQL Authentication ---
+        if self.entraid is None:
+            if not self.uid or not self.pwd:
+                raise ValueError("UID and PWD must be provided for standard SQL auth.")
+            
+            pwd_str = self.pwd.get_secret_value()
+            connection_string = (
+                f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+                f"SERVER={self.server};"
+                f"DATABASE={self.database};"
+                f"UID={self.uid};"
+                f"PWD={pwd_str};"
+                "LongAsMax=yes;"
+                "Connect Timeout=30;"
+                "Encrypt=yes;"
+                "TrustServerCertificate=Yes"
+            )
+            return {"connection_string": connection_string}
+
+        # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
+        print(f"Attempting to get token for User-Assigned Identity: {self.entraid}")
+        
+        # 1. Get credentials and token using azure-identity
+        credential = ManagedIdentityCredential(client_id=self.entraid)
+        access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
+        token_bytes = access_token.token.encode("UTF-16-LE")
+        
+        # 2. Pack the token for the driver
+        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+        
+        print("Token acquired successfully.")
+
+        # 3. Create the connection string WITHOUT auth keywords (UID, PWD, AUTHENTICATION)
+        connection_string = (
+            f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+            f"SERVER={self.server};"
+            f"DATABASE={self.database};"
+            "LongAsMax=yes;"
+            "Connect Timeout=30;"
+            "Encrypt=yes;"
+            "TrustServerCertificate=Yes"
+        )
+        
+        # 4. Return both the string and the token attributes
         return {
-            "connection_string" : MSSQL_CONNECTION_STRING_PLACEHOLDER%(self.server, self.database, self.uid, pwd_str)
+            "connection_string": connection_string,
+            "attrs_before": {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
         }
 
 
