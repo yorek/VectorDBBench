@@ -1,9 +1,12 @@
 import pyodbc
 import struct
+import logging
 from azure.identity import ManagedIdentityCredential
 from pydantic import BaseModel, SecretStr
 from typing import Optional
 from ..api import DBConfig, DBCaseConfig, MetricType
+
+log = logging.getLogger(__name__)
 
 MSSQL_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s;LongAsMax=yes;Connect Timeout=30;TrustServerCertificate=Yes"
 
@@ -28,7 +31,7 @@ class MSSQLConfig(DBConfig):
         # --- Case 1: Standard SQL Authentication ---
         if self.entraid is None:
             if not self.uid or not self.pwd:
-                raise ValueError("UID and PWD must be provided for standard SQL auth.")
+                log.error("UID and PWD must be provided for standard SQL auth.")
             
             pwd_str = self.pwd.get_secret_value()
             connection_string = (
@@ -45,7 +48,7 @@ class MSSQLConfig(DBConfig):
             return {"connection_string": connection_string}
 
         # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
-        print(f"Attempting to get token for User-Assigned Identity: {self.entraid}")
+        log.info(f"Attempting to get token for User-Assigned Identity: {self.entraid}")
         
         # 1. Get credentials and token using azure-identity
         credential = ManagedIdentityCredential(client_id=self.entraid)
@@ -55,7 +58,7 @@ class MSSQLConfig(DBConfig):
         # 2. Pack the token for the driver
         token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
         
-        print("Token acquired successfully.")
+        log.info("Token acquired successfully.")
 
         # 3. Create the connection string WITHOUT auth keywords (UID, PWD, AUTHENTICATION)
         connection_string = (
