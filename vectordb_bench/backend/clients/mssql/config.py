@@ -4,11 +4,8 @@ from azure.identity import ManagedIdentityCredential
 from pydantic import BaseModel, SecretStr
 from typing import Optional
 from ..api import DBConfig, DBCaseConfig, MetricType
+
 MSSQL_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s;LongAsMax=yes;Connect Timeout=30;TrustServerCertificate=Yes"
-
-MSSQL_ENTRA_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;AUTHENTICATION=ActiveDirectoryMsi;UID=%s;LongAsMax=yes;Connect Timeout=30;Encrypt=yes;TrustServerCertificate=Yes"
-
-#MSSQL_ENTRA_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;AUTHENTICATION=ActiveDirectoryServicePrincipal;UID=%s;PWD=%s;LongAsMax=yes;Connect Timeout=30;Encrypt=yes;TrustServerCertificate=No"
 
 # --- Constants for Token Authentication ---
 SQL_COPT_SS_ACCESS_TOKEN = 1256 
