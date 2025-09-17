@@ -32,7 +32,10 @@ class MSSQL(VectorDB):
 
         log.info(f"Connecting to MSSQL...")
         #log.info(self.db_config['connection_string'])
-        cnxn = pyodbc.connect(self.db_config['connection_string'])     
+        cnxn = pyodbc.connect(
+            self.db_config.get("connection_string"),
+            attrs_before=self.db_config.get("attrs_before")
+        )
         cursor = cnxn.cursor()
 
         log.info(f"Creating schema...")
@@ -44,11 +47,12 @@ class MSSQL(VectorDB):
         cnxn.commit()
         
         if drop_old:
-            log.info(f"Dropping existing table...")
+            log.info(f"Dropping existing table... drop table if exists [{self.schema_name}].[{self.table_name}] ")
             cursor.execute(f""" 
                 drop table if exists [{self.schema_name}].[{self.table_name}]
             """)           
             cnxn.commit()
+
 
         log.info(f"Creating vector table...")
         cursor.execute(f""" 
@@ -60,7 +64,14 @@ class MSSQL(VectorDB):
             end
         """)
         cnxn.commit()
-            
+ 
+        log.info(f"Dropping old loading vector table type and stored procedure")
+        cursor.execute(f"""
+            drop procedure if exists stp_load_vectors
+            drop type if exists dbo.vector_payload
+        """)
+        cnxn.commit()
+           
         log.info(f"Creating table type...")
         cursor.execute(f""" 
             if type_id('dbo.vector_payload') is null begin
@@ -81,7 +92,7 @@ class MSSQL(VectorDB):
             as
             begin
                 set nocount on
-                insert into [{self.schema_name}].[{self.table_name}] (id, vector) select id, [vector] from @payload;
+                insert into [{self.schema_name}].[{self.table_name}] (id, [vector]) select id, [vector] from @payload;
             end
         """)
         cnxn.commit()
@@ -91,7 +102,10 @@ class MSSQL(VectorDB):
             
     @contextmanager
     def init(self) -> Generator[None, None, None]:
-        cnxn = pyodbc.connect(self.db_config['connection_string'])     
+        cnxn = pyodbc.connect(
+            self.db_config.get("connection_string"),
+            attrs_before=self.db_config.get("attrs_before")
+        )
         self.cnxn = cnxn    
         cnxn.autocommit = True
         self.cursor = cnxn.cursor()
@@ -151,7 +165,7 @@ class MSSQL(VectorDB):
             #cursor.rollback()
             log.warning(f"Failed to insert data into vector table ([{self.schema_name}].[{self.table_name}]), error: {e}")   
             return 0, e
-
+    
     def search_embedding(        
         self,
         query: list[float],
@@ -162,7 +176,6 @@ class MSSQL(VectorDB):
         search_param = self.case_config.search_param()
         metric_function = search_param["metric"]
         #efSearch = search_param["efSearch"]
-        #log.info(f'Query top:{k} metric:{metric_fun} filters:{filters} params: {search_param} timeout:{timeout}...')
         cursor = self.cursor
         if filters:
             # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
