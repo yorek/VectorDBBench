@@ -196,7 +196,7 @@ class CaseRunner(BaseModel):
                     m.recall = search_results.recall
                     m.serial_latencies = search_results.serial_latencies
                     """
-                    m.recall, m.ndcg, m.serial_latency_p99 = search_results
+                    m.recall, m.ndcg, m.serial_latency_p99, m.serial_latency_p95, m.serial_latency_p50 =  search_results
 
         except Exception as e:
             log.warning(f"Failed to run performance case, reason = {e}")

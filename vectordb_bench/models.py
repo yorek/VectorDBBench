@@ -295,6 +295,8 @@ class TestResult(BaseModel):
             max_load_dur,
             max_qps,
             15,
+            15,
+            15,
             max_recall,
             14,
             5,
@@ -302,7 +304,7 @@ class TestResult(BaseModel):
 
         DATA_FORMAT = (
             f"%-{max_db}s | %-{max_db_labels}s %-{max_case}s %-{len(self.task_label)}s"
-            f" | %-{max_load_dur}s %-{max_qps}s %-15s %-{max_recall}s %-14s"
+            f" | %-{max_load_dur}s %-{max_qps}s %-15s %-15s %-15s %-{max_recall}s %-14s"
             f" | %-5s"
         )
 
@@ -314,6 +316,8 @@ class TestResult(BaseModel):
             "load_dur",
             "qps",
             "latency(p99)",
+            "latency(p95)",
+            "latency(p50)",
             "recall",
             "max_load_count",
             "label",
@@ -336,6 +340,8 @@ class TestResult(BaseModel):
                     f.metrics.load_duration,
                     f.metrics.qps,
                     f.metrics.serial_latency_p99,
+                    f.metrics.serial_latency_p95,
+                    f.metrics.serial_latency_p50,
                     f.metrics.recall,
                     f.metrics.max_load_count,
                     f.label.value,

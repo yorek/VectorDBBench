@@ -71,8 +71,7 @@ class SerialInsertRunner:
                     )
 
             log.info(
-                f"({mp.current_process().name:16}) Finish loading all dataset into VectorDB, ",
-                f"dur={time.perf_counter()-start}",
+                f"({mp.current_process().name:16}) Finish loading all dataset into VectorDB, dur={time.perf_counter()-start}",
             )
             return count
 
@@ -251,6 +250,9 @@ class SerialSearchRunner:
         avg_ndcg = round(np.mean(ndcgs), 4)
         cost = round(np.sum(latencies), 4)
         p99 = round(np.percentile(latencies, 99), 4)
+        p95 = round(np.percentile(latencies, 95), 4)
+        p50 = round(np.percentile(latencies, 50), 4)
+
         log.info(
             f"{mp.current_process().name:14} search entire test_data: "
             f"cost={cost}s, "
@@ -258,9 +260,10 @@ class SerialSearchRunner:
             f"avg_recall={avg_recall}, "
             f"avg_ndcg={avg_ndcg},"
             f"avg_latency={avg_latency}, "
-            f"p99={p99}",
+            f"p99={p99}, p95={p95}, p50={p50}",
         )
-        return (avg_recall, avg_ndcg, p99)
+        log.info(p95)
+        return (avg_recall, avg_ndcg, p99, p95, p50)
 
     def _run_in_subprocess(self) -> tuple[float, float]:
         with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
