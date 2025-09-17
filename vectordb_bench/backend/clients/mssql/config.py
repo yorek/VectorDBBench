@@ -29,7 +29,7 @@ class MSSQLConfig(DBConfig):
         manually and returns connection attributes for pyodbc.
         """
         # --- Case 1: Standard SQL Authentication ---
-        if self.entraid is None:
+        if self.entraid is None or self.entraid.strip().lower() in ["no", "false"]:
             if not self.uid or not self.pwd:
                 log.error("UID and PWD must be provided for standard SQL auth.")
             
