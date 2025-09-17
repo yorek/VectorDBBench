@@ -13,7 +13,6 @@ echo  $(hostname).local
 LAPTOP-DM-2.local
 vectordb
 
-export LOG_LEVEL="DEBUG"
 --
 
 install odbc if in linux
@@ -39,11 +38,13 @@ pip install -e '.[test]'
 
 pip install -e '.[mssql]'
 
-python -m vectordb_bench
+export LOG_LEVEL="DEBUG"
 
 export DROP_OLD=True|False
-export export NUM_PER_BATCH=50000 (default is 5000)
+export NUM_PER_BATCH=50000 (default is 5000)
 export NUM_CONCURRENCY=5,10,25,50
+
+python -m vectordb_bench
 
 check windows firewall if cannot connect to sql
 
