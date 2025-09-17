@@ -27,7 +27,7 @@ dependencies = [
     "click",
     "pytz",
     "streamlit-autorefresh",
-    "streamlit!=1.34.0",
+    "streamlit==1.22.0",
     "streamlit_extras",
     "tqdm",
     "s3fs",
@@ -67,7 +67,9 @@ all = [
     "opensearch-py",
     "memorydb",
     "alibabacloud_ha3engine_vector",
-    "alibabacloud_searchengine20211025"
+    "alibabacloud_searchengine20211025",
+    "pyodbc",
+    "azure-identity"
 ]
 
 qdrant          = [ "qdrant-client" ]
@@ -79,13 +81,13 @@ elastic         = [ "elasticsearch" ]
 pgvector        = [ "psycopg", "psycopg-binary", "pgvector" ]
 # for pgvector, pgvectorscale, pgdiskann, and, alloydb
 
-pgvecto_rs      = [ "pgvecto_rs[psycopg3]>=0.2.2" ]
-redis           = [ "redis" ]
-memorydb        = [ "memorydb" ]
-chromadb        = [ "chromadb" ]
-opensearch      = [ "opensearch-py" ]
-aliyun_opensearch = [ "alibabacloud_ha3engine_vector", "alibabacloud_searchengine20211025"]
-mssql = [ "pyodbc", "azure-identity" ]
+pgvecto_rs          = [ "pgvecto_rs[psycopg3]>=0.2.2" ]
+redis               = [ "redis" ]
+memorydb            = [ "memorydb" ]
+chromadb            = [ "chromadb" ]
+opensearch          = [ "opensearch-py" ]
+aliyun_opensearch   = [ "alibabacloud_ha3engine_vector", "alibabacloud_searchengine20211025" ]
+mssql               = [ "pyodbc", "azure-identity" ]
 
 [project.urls]
 "repository" = "https://github.com/zilliztech/VectorDBBench"
