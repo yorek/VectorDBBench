@@ -68,7 +68,8 @@ all = [
     "memorydb",
     "alibabacloud_ha3engine_vector",
     "alibabacloud_searchengine20211025",
-    "pyodbc"
+    "pyodbc",
+    "azure-identity"
 ]
 
 qdrant          = [ "qdrant-client" ]
@@ -86,7 +87,7 @@ memorydb        = [ "memorydb" ]
 chromadb        = [ "chromadb" ]
 opensearch      = [ "opensearch-py" ]
 aliyun_opensearch = [ "alibabacloud_ha3engine_vector", "alibabacloud_searchengine20211025"]
-mssql = [ "pyodbc" ]
+mssql = [ "pyodbc", "azure-identity" ]
 
 [project.urls]
 "repository" = "https://github.com/zilliztech/VectorDBBench"
