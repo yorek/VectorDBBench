@@ -157,9 +157,11 @@ class MSSQL(VectorDB):
             log.info(f'Generating param list...')
             params = [(metadata[i], json.dumps(embeddings[i])) for i in range(len(metadata))]
 
-            log.info(f'Loading table...')
+            log.info(f'Loading batch...')
             cursor = self.cursor          
             cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))     
+
+            log.info(f'Batch loaded successfully.')
             return len(metadata), None
         except Exception as e:
             #cursor.rollback()
