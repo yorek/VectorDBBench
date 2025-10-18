@@ -47,14 +47,14 @@ class MSSQL(VectorDB):
         cnxn.commit()
         
         if drop_old:
-            log.info(f"Dropping existing table... drop table if exists [{self.schema_name}].[{self.table_name}] ")
+            log.info(f"Dropping existing table...")
             cursor.execute(f""" 
                 drop table if exists [{self.schema_name}].[{self.table_name}]
             """)           
             cnxn.commit()
 
 
-        log.info(f"Creating vector table...")
+        log.info(f"Creating vector table '[{self.schema_name}].[{self.table_name}]'...")
         cursor.execute(f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (

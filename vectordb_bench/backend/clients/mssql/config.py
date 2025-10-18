@@ -1,8 +1,8 @@
 import pyodbc
 import struct
 import logging
-from azure.identity import ManagedIdentityCredential
-from pydantic import BaseModel, SecretStr
+import azure.identity 
+from pydantic import BaseModel, SecretStr, validator
 from typing import Optional
 from ..api import DBConfig, DBCaseConfig, MetricType
 
@@ -48,10 +48,16 @@ class MSSQLConfig(DBConfig):
             return {"connection_string": connection_string}
 
         # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
-        log.info(f"Attempting to get token for User-Assigned Identity: {self.entraid}")
+        log.info(f"Acquiring token for authentication...")
         
         # 1. Get credentials and token using azure-identity
-        credential = ManagedIdentityCredential(client_id=self.entraid)
+        if self.entraid.strip() == "":
+            log.info("Using Azure CLI Credentials for authentication.")
+            credential = azure.identity.AzureCliCredential()
+        else:
+            log.info(f"Using Managed Identity Credential with client_id: {self.entraid}")
+            credential = azure.identity.ManagedIdentityCredential(client_id=self.entraid)
+
         access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
         token_bytes = access_token.token.encode("UTF-16-LE")
         
@@ -76,6 +82,18 @@ class MSSQLConfig(DBConfig):
             "connection_string": connection_string,
             "attrs_before": {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
         }
+
+    @validator("*")
+    def not_empty_field(cls, v: any, field: any):
+        if (
+            field.name in cls.common_short_configs()
+            or field.name in cls.common_long_configs()
+            or field.name in ["uid", "pwd", "entraid"]
+        ):
+            return v
+        if isinstance(v, str | SecretStr) and len(v) == 0:
+            raise ValueError("Empty string!")
+        return v
 
 
 class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):

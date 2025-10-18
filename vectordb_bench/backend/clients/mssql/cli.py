@@ -33,8 +33,6 @@ class MSSQLTypedDict(CommonTypedDict):
         click.option("--entraid", type=str, help="Entra Id Authentication", required=False),
     ]
 
-
-
 @cli.command()
 @click_parameter_decorators_from_typed_dict(MSSQLTypedDict)
 def MSSQL(**parameters: Unpack[MSSQLTypedDict]):

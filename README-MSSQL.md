@@ -79,3 +79,17 @@ Run a test:
 ```bash
 vectordbbench mssql --database=vectordb --server=**IP_ADDRESS** --uid=sa --pwd=**PASSWORD_HERE**  --concurrency-duration=1800 --skip-search-concurrent --case-type=Performance1536D500K 
 ```
+
+## Authentication notes
+
+## Using SQL Authentication
+
+Specify values for `--uid` and `--pwd` parameters and leave `--entraid` empty.
+
+## Using Entra ID Managed Identity Authentication
+
+Specify value for `--entraid` parameter. The value is the name of the identity to use.
+
+## Using Entra ID Azure CLI Authentication
+
+Specify empty value for `--entraid`, `--uid` and `--pwd` parameters. Make sure you are logged in with Azure CLI using `az login` command.
