@@ -1,20 +1,9 @@
-import pyodbc
-import struct
 import logging
-import azure.identity 
 from pydantic import BaseModel, SecretStr, validator
 from typing import Optional
 from ..api import DBConfig, DBCaseConfig, MetricType
 
 log = logging.getLogger(__name__)
-
-MSSQL_CONNECTION_STRING_PLACEHOLDER="DRIVER={ODBC Driver 18 for SQL Server};SERVER=%s;DATABASE=%s;UID=%s;PWD=%s;LongAsMax=yes;Connect Timeout=30;TrustServerCertificate=Yes"
-
-# --- Constants for Token Authentication ---
-SQL_COPT_SS_ACCESS_TOKEN = 1256 
-SQL_SERVER_TOKEN_SCOPE = "https://database.windows.net/.default"
-
-# --- Your Modified MSSQLConfig Class ---
 
 class MSSQLConfig(DBConfig):
     server: str
@@ -28,10 +17,11 @@ class MSSQLConfig(DBConfig):
         Prepares connection parameters. If entraid is provided, it fetches a token
         manually and returns connection attributes for pyodbc.
         """
+        authentication = "SqlPassword"
+
         # --- Case 1: Standard SQL Authentication ---
-        if self.entraid is None or self.entraid.strip().lower() in ["no", "false"]:
-            if not self.uid or not self.pwd:
-                log.error("UID and PWD must be provided for standard SQL auth.")
+        if self.uid.strip() != "" and self.pwd is not None:
+            log.info("SQL Authentication requested.")
             
             pwd_str = self.pwd.get_secret_value()
             connection_string = (
@@ -45,28 +35,18 @@ class MSSQLConfig(DBConfig):
                 "Encrypt=yes;"
                 "TrustServerCertificate=Yes"
             )
-            return {"connection_string": connection_string}
+            return {"connection_string": connection_string, "authentication": authentication}
 
         # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
-        log.info(f"Acquiring token for authentication...")
-        
-        # 1. Get credentials and token using azure-identity
-        if self.entraid.strip() == "":
-            log.info("Using Azure CLI Credentials for authentication.")
-            credential = azure.identity.AzureCliCredential()
+        log.info("Entra ID requested.")
+
+        if self.entraid is not None and self.entraid.strip().lower() not in ["no", "false", ""]:
+            log.info(f"Managed Identity Credential with client_id {self.entraid} requested.")
+            authentication = "ManagedIdentityCredential"
         else:
-            log.info(f"Using Managed Identity Credential with client_id: {self.entraid}")
-            credential = azure.identity.ManagedIdentityCredential(client_id=self.entraid)
+            log.info("Azure CLI Credentials authentication requested.")
+            authentication = "AzureCLICredential"
 
-        access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
-        token_bytes = access_token.token.encode("UTF-16-LE")
-        
-        # 2. Pack the token for the driver
-        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
-        
-        log.info("Token acquired successfully.")
-
-        # 3. Create the connection string WITHOUT auth keywords (UID, PWD, AUTHENTICATION)
         connection_string = (
             f"DRIVER={{ODBC Driver 18 for SQL Server}};"
             f"SERVER={self.server};"
@@ -80,7 +60,8 @@ class MSSQLConfig(DBConfig):
         # 4. Return both the string and the token attributes
         return {
             "connection_string": connection_string,
-            "attrs_before": {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+            "authentication": authentication,
+            "principal": self.entraid
         }
 
     @validator("*")

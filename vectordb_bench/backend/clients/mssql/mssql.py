@@ -9,7 +9,14 @@ from ..api import VectorDB, DBCaseConfig
 import pyodbc
 import json
 
+import struct
+import azure.identity 
+
 log = logging.getLogger(__name__) 
+
+# --- Constants for Token Authentication ---
+SQL_COPT_SS_ACCESS_TOKEN = 1256 
+SQL_SERVER_TOKEN_SCOPE = "https://database.windows.net/.default"
 
 class MSSQL(VectorDB):    
     def __init__(
@@ -32,10 +39,7 @@ class MSSQL(VectorDB):
 
         log.info(f"Connecting to MSSQL...")
         #log.info(self.db_config['connection_string'])
-        cnxn = pyodbc.connect(
-            self.db_config.get("connection_string"),
-            attrs_before=self.db_config.get("attrs_before")
-        )
+        cnxn = self.connect()
         cursor = cnxn.cursor()
 
         log.info(f"Creating schema...")
@@ -102,13 +106,9 @@ class MSSQL(VectorDB):
             
     @contextmanager
     def init(self) -> Generator[None, None, None]:
-        cnxn = pyodbc.connect(
-            self.db_config.get("connection_string"),
-            attrs_before=self.db_config.get("attrs_before")
-        )
-        self.cnxn = cnxn    
-        cnxn.autocommit = True
-        self.cursor = cnxn.cursor()
+        self.cnxn = self.connect()
+        self.cnxn.autocommit = True
+        self.cursor = self.cnxn.cursor()
         try:
             yield
         finally: 
@@ -223,4 +223,35 @@ class MSSQL(VectorDB):
         res = [row.id for row in rows]
         return res
         
+    def connect(self):
+        authentication = self.db_config.get("authentication")
+
+        # --- Case 1: Standard SQL Authentication ---   
+        if authentication == "SqlPassword":
+            cnxn = pyodbc.connect(
+                self.db_config.get("connection_string"),
+            )
+            return cnxn
         
+        # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
+        log.info(f"Acquiring token for authentication...")
+        
+        if authentication == "AzureCLICredential":
+            log.info("Using Azure CLI Credentials for authentication.")
+            credential = azure.identity.AzureCliCredential()
+
+        if authentication == "ManagedIdentityCredential":
+            log.info(f"Using Managed Identity Credential with client_id: {self.db_config.get('principal')}")
+            credential = azure.identity.ManagedIdentityCredential(client_id=self.db_config.get("principal"))
+
+        access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
+        token_bytes = access_token.token.encode("UTF-16-LE")
+        
+        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)        
+        log.info("Token acquired successfully.")
+
+        cnxn = pyodbc.connect(
+            self.db_config.get("connection_string"),
+            attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+        )
+        return cnxn 
