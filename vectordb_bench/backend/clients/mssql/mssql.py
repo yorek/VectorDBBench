@@ -124,7 +124,7 @@ class MSSQL(VectorDB):
         log.info(f"MSSQL ready to load")
         pass
 
-    def optimize(self):        
+    def optimize(self, data_size: int):       
         log.info(f"MSSQL optimize")
         search_param = self.case_config.search_param()
         metric_function = search_param["metric"]
