@@ -3,6 +3,8 @@
 import logging
 from contextlib import contextmanager
 from typing import Any, Generator, Optional, Tuple, Sequence
+import time
+from datetime import datetime
 
 from ..api import VectorDB, DBCaseConfig
 
@@ -11,7 +13,6 @@ import json
 
 import struct
 import azure.identity 
-import time
 
 log = logging.getLogger(__name__) 
 
@@ -230,6 +231,7 @@ class MSSQL(VectorDB):
         authentication = self.db_config.get("authentication")
 
         # --- Case 1: Standard SQL Authentication ---   
+
         if authentication == "SqlPassword":
             cnxn = pyodbc.connect(
                 self.db_config.get("connection_string"),
@@ -238,10 +240,16 @@ class MSSQL(VectorDB):
         
         # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
        
-        # check if token is not null and if expires in the next hour
-        if self.access_token is not None and self.access_token.expires_on - time.time() < 3600:
-            log.info("Token is expiring soon, acquiring a new one.")            
-            self.access_token = None
+        # check if token exists and if it expires within the next hour (or is already expired)
+        if self.access_token is not None:
+            remaining_seconds = self.access_token.expires_on - time.time()
+            if remaining_seconds < 300:  # expires within 5 minutes or already expired
+                expiration_datetime = datetime.fromtimestamp(self.access_token.expires_on)
+                if remaining_seconds <= 0:
+                    log.info(f"Token expired on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} ({abs(remaining_seconds):.0f} seconds ago), acquiring a new one.")
+                else:
+                    log.info(f"Token expires on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} (in {remaining_seconds:.0f} seconds), acquiring a new one.")
+                self.access_token = None
     
         if self.access_token is None:
             log.info(f"Acquiring token for authentication...")
