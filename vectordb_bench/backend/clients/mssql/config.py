@@ -20,7 +20,7 @@ class MSSQLConfig(DBConfig):
         authentication = "SqlPassword"
 
         # --- Case 1: Standard SQL Authentication ---
-        if self.uid.strip() != "" and self.pwd is not None:
+        if self.uid is not None and self.pwd is not None:
             log.info("SQL Authentication requested.")
             
             pwd_str = self.pwd.get_secret_value()
