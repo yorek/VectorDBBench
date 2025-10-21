@@ -3,13 +3,22 @@
 import logging
 from contextlib import contextmanager
 from typing import Any, Generator, Optional, Tuple, Sequence
+import time
+from datetime import datetime
 
 from ..api import VectorDB, DBCaseConfig
 
 import pyodbc
 import json
 
+import struct
+import azure.identity 
+
 log = logging.getLogger(__name__) 
+
+# --- Constants for Token Authentication ---
+SQL_COPT_SS_ACCESS_TOKEN = 1256 
+SQL_SERVER_TOKEN_SCOPE = "https://database.windows.net/.default"
 
 class MSSQL(VectorDB):    
     def __init__(
@@ -27,15 +36,13 @@ class MSSQL(VectorDB):
         self.dim = dim
         self.schema_name = "benchmark"
         self.drop_old = drop_old
+        self.access_token = None
 
         log.info("db_case_config: " + str(db_case_config))
 
         log.info(f"Connecting to MSSQL...")
         #log.info(self.db_config['connection_string'])
-        cnxn = pyodbc.connect(
-            self.db_config.get("connection_string"),
-            attrs_before=self.db_config.get("attrs_before")
-        )
+        cnxn = self.connect()
         cursor = cnxn.cursor()
 
         log.info(f"Creating schema...")
@@ -47,14 +54,14 @@ class MSSQL(VectorDB):
         cnxn.commit()
         
         if drop_old:
-            log.info(f"Dropping existing table... drop table if exists [{self.schema_name}].[{self.table_name}] ")
+            log.info(f"Dropping existing table...")
             cursor.execute(f""" 
                 drop table if exists [{self.schema_name}].[{self.table_name}]
             """)           
             cnxn.commit()
 
 
-        log.info(f"Creating vector table...")
+        log.info(f"Creating vector table '[{self.schema_name}].[{self.table_name}]'...")
         cursor.execute(f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
@@ -102,13 +109,9 @@ class MSSQL(VectorDB):
             
     @contextmanager
     def init(self) -> Generator[None, None, None]:
-        cnxn = pyodbc.connect(
-            self.db_config.get("connection_string"),
-            attrs_before=self.db_config.get("attrs_before")
-        )
-        self.cnxn = cnxn    
-        cnxn.autocommit = True
-        self.cursor = cnxn.cursor()
+        self.cnxn = self.connect()
+        self.cnxn.autocommit = True
+        self.cursor = self.cnxn.cursor()
         try:
             yield
         finally: 
@@ -157,9 +160,11 @@ class MSSQL(VectorDB):
             log.info(f'Generating param list...')
             params = [(metadata[i], json.dumps(embeddings[i])) for i in range(len(metadata))]
 
-            log.info(f'Loading table...')
+            log.info(f'Loading batch...')
             cursor = self.cursor          
             cursor.execute("EXEC dbo.stp_load_vectors @dummy=?, @payload=?", (1, params))     
+
+            log.info(f'Batch loaded successfully.')
             return len(metadata), None
         except Exception as e:
             #cursor.rollback()
@@ -180,13 +185,14 @@ class MSSQL(VectorDB):
         if filters:
             # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
             cursor.execute(f"""        
+                declare @v vector({self.dim}) = ?;  
                 select 
                     t.id
                 from
                     vector_search(
                         table = [{self.schema_name}].[{self.table_name}] AS t, 
                         column = [vector], 
-                        similar_to = ?,
+                        similar_to = @v,
                         metric = '{metric_function}', 
                         top_n = ?
                     ) AS s
@@ -221,4 +227,51 @@ class MSSQL(VectorDB):
         res = [row.id for row in rows]
         return res
         
+    def connect(self):
+        authentication = self.db_config.get("authentication")
+
+        # --- Case 1: Standard SQL Authentication ---   
+
+        if authentication == "SqlPassword":
+            cnxn = pyodbc.connect(
+                self.db_config.get("connection_string"),
+            )
+            return cnxn
         
+        # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
+       
+        # check if token exists and if it expires within the next hour (or is already expired)
+        if self.access_token is not None:
+            remaining_seconds = self.access_token.expires_on - time.time()
+            if remaining_seconds < 300:  # expires within 5 minutes or already expired
+                expiration_datetime = datetime.fromtimestamp(self.access_token.expires_on)
+                if remaining_seconds <= 0:
+                    log.info(f"Token expired on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} ({abs(remaining_seconds):.0f} seconds ago), acquiring a new one.")
+                else:
+                    log.info(f"Token expires on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} (in {remaining_seconds:.0f} seconds), acquiring a new one.")
+                self.access_token = None
+    
+        if self.access_token is None:
+            log.info(f"Acquiring token for authentication...")
+
+            if authentication == "AzureCLICredential":
+                log.info("Using Azure CLI Credentials for authentication.")
+                credential = azure.identity.AzureCliCredential()
+
+            if authentication == "ManagedIdentityCredential":
+                log.info(f"Using Managed Identity Credential with client_id: {self.db_config.get('principal')}")
+                credential = azure.identity.ManagedIdentityCredential(client_id=self.db_config.get("principal"))
+    
+            access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
+            log.info("Token acquired successfully.")
+
+            self.access_token = access_token
+
+        token_bytes = self.access_token.token.encode("UTF-16-LE")
+        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
+
+        cnxn = pyodbc.connect(
+            self.db_config.get("connection_string"),
+            attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+        )
+        return cnxn 
