@@ -11,6 +11,7 @@ import json
 
 import struct
 import azure.identity 
+import time
 
 log = logging.getLogger(__name__) 
 
@@ -34,6 +35,7 @@ class MSSQL(VectorDB):
         self.dim = dim
         self.schema_name = "benchmark"
         self.drop_old = drop_old
+        self.access_token = None
 
         log.info("db_case_config: " + str(db_case_config))
 
@@ -182,13 +184,14 @@ class MSSQL(VectorDB):
         if filters:
             # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
             cursor.execute(f"""        
+                declare @v vector({self.dim}) = ?;  
                 select 
                     t.id
                 from
                     vector_search(
                         table = [{self.schema_name}].[{self.table_name}] AS t, 
                         column = [vector], 
-                        similar_to = ?,
+                        similar_to = @v,
                         metric = '{metric_function}', 
                         top_n = ?
                     ) AS s
@@ -234,21 +237,30 @@ class MSSQL(VectorDB):
             return cnxn
         
         # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
-        log.info(f"Acquiring token for authentication...")
-        
-        if authentication == "AzureCLICredential":
-            log.info("Using Azure CLI Credentials for authentication.")
-            credential = azure.identity.AzureCliCredential()
+       
+        # check if token is not null and if expires in the next hour
+        if self.access_token is not None and self.access_token.expires_on - time.time() < 3600:
+            log.info("Token is expiring soon, acquiring a new one.")            
+            self.access_token = None
+    
+        if self.access_token is None:
+            log.info(f"Acquiring token for authentication...")
 
-        if authentication == "ManagedIdentityCredential":
-            log.info(f"Using Managed Identity Credential with client_id: {self.db_config.get('principal')}")
-            credential = azure.identity.ManagedIdentityCredential(client_id=self.db_config.get("principal"))
+            if authentication == "AzureCLICredential":
+                log.info("Using Azure CLI Credentials for authentication.")
+                credential = azure.identity.AzureCliCredential()
 
-        access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
-        token_bytes = access_token.token.encode("UTF-16-LE")
-        
-        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)        
-        log.info("Token acquired successfully.")
+            if authentication == "ManagedIdentityCredential":
+                log.info(f"Using Managed Identity Credential with client_id: {self.db_config.get('principal')}")
+                credential = azure.identity.ManagedIdentityCredential(client_id=self.db_config.get("principal"))
+    
+            access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
+            log.info("Token acquired successfully.")
+
+            self.access_token = access_token
+
+        token_bytes = self.access_token.token.encode("UTF-16-LE")
+        token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
 
         cnxn = pyodbc.connect(
             self.db_config.get("connection_string"),
