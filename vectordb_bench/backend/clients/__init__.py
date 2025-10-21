@@ -27,6 +27,7 @@ class DB(Enum):
     Pinecone = "Pinecone"
     ElasticCloud = "ElasticCloud"
     QdrantCloud = "QdrantCloud"
+    QdrantLocal = "QdrantLocal"
     WeaviateCloud = "WeaviateCloud"
     PgVector = "PgVector"
     PgVectoRS = "PgVectoRS"
@@ -37,13 +38,23 @@ class DB(Enum):
     MemoryDB = "MemoryDB"
     Chroma = "Chroma"
     AWSOpenSearch = "OpenSearch"
+    OSSOpenSearch = "OSSOpenSearch"
     AliyunElasticsearch = "AliyunElasticsearch"
+    MariaDB = "MariaDB"
     Test = "test"
     AliyunOpenSearch = "AliyunOpenSearch"    
+    MongoDB = "MongoDB"
+    TiDB = "TiDB"
+    Clickhouse = "Clickhouse"
+    Vespa = "Vespa"
+    LanceDB = "LanceDB"
+    OceanBase = "OceanBase"
+    S3Vectors = "S3Vectors"
+    Hologres = "Alibaba Cloud Hologres"
     MSSQL = "MSSQL"
 
     @property
-    def init_cls(self) -> type[VectorDB]:  # noqa: PLR0911, PLR0912
+    def init_cls(self) -> type[VectorDB]:  # noqa: PLR0911, PLR0912, C901, PLR0915
         """Import while in use"""
         if self == DB.MSSQL:
             from .mssql.mssql import MSSQL
@@ -73,6 +84,11 @@ class DB(Enum):
             from .qdrant_cloud.qdrant_cloud import QdrantCloud
 
             return QdrantCloud
+
+        if self == DB.QdrantLocal:
+            from .qdrant_local.qdrant_local import QdrantLocal
+
+            return QdrantLocal
 
         if self == DB.WeaviateCloud:
             from .weaviate_cloud.weaviate_cloud import WeaviateCloud
@@ -119,6 +135,16 @@ class DB(Enum):
 
             return AWSOpenSearch
 
+        if self == DB.OSSOpenSearch:
+            from .oss_opensearch.oss_opensearch import OSSOpenSearch
+
+            return OSSOpenSearch
+
+        if self == DB.Clickhouse:
+            from .clickhouse.clickhouse import Clickhouse
+
+            return Clickhouse
+
         if self == DB.AlloyDB:
             from .alloydb.alloydb import AlloyDB
 
@@ -134,11 +160,56 @@ class DB(Enum):
 
             return AliyunOpenSearch
 
+        if self == DB.MongoDB:
+            from .mongodb.mongodb import MongoDB
+
+            return MongoDB
+
+        if self == DB.OceanBase:
+            from .oceanbase.oceanbase import OceanBase
+
+            return OceanBase
+
+        if self == DB.MariaDB:
+            from .mariadb.mariadb import MariaDB
+
+            return MariaDB
+
+        if self == DB.TiDB:
+            from .tidb.tidb import TiDB
+
+            return TiDB
+
+        if self == DB.Test:
+            from .test.test import Test
+
+            return Test
+
+        if self == DB.Vespa:
+            from .vespa.vespa import Vespa
+
+            return Vespa
+
+        if self == DB.LanceDB:
+            from .lancedb.lancedb import LanceDB
+
+            return LanceDB
+
+        if self == DB.S3Vectors:
+            from .s3_vectors.s3_vectors import S3Vectors
+
+            return S3Vectors
+
+        if self == DB.Hologres:
+            from .hologres.hologres import Hologres
+
+            return Hologres
+
         msg = f"Unknown DB: {self.name}"
         raise ValueError(msg)
 
     @property
-    def config_cls(self) -> type[DBConfig]:  # noqa: PLR0911, PLR0912
+    def config_cls(self) -> type[DBConfig]:  # noqa: PLR0911, PLR0912, C901, PLR0915
         """Import while in use"""
         if self == DB.MSSQL:
             from .mssql.config import MSSQLConfig
@@ -168,6 +239,11 @@ class DB(Enum):
             from .qdrant_cloud.config import QdrantConfig
 
             return QdrantConfig
+
+        if self == DB.QdrantLocal:
+            from .qdrant_local.config import QdrantLocalConfig
+
+            return QdrantLocalConfig
 
         if self == DB.WeaviateCloud:
             from .weaviate_cloud.config import WeaviateConfig
@@ -214,6 +290,16 @@ class DB(Enum):
 
             return AWSOpenSearchConfig
 
+        if self == DB.OSSOpenSearch:
+            from .oss_opensearch.config import OSSOpenSearchConfig
+
+            return OSSOpenSearchConfig
+
+        if self == DB.Clickhouse:
+            from .clickhouse.config import ClickhouseConfig
+
+            return ClickhouseConfig
+
         if self == DB.AlloyDB:
             from .alloydb.config import AlloyDBConfig
 
@@ -229,10 +315,55 @@ class DB(Enum):
 
             return AliyunOpenSearchConfig
 
+        if self == DB.MongoDB:
+            from .mongodb.config import MongoDBConfig
+
+            return MongoDBConfig
+
+        if self == DB.OceanBase:
+            from .oceanbase.config import OceanBaseConfig
+
+            return OceanBaseConfig
+
+        if self == DB.MariaDB:
+            from .mariadb.config import MariaDBConfig
+
+            return MariaDBConfig
+
+        if self == DB.TiDB:
+            from .tidb.config import TiDBConfig
+
+            return TiDBConfig
+
+        if self == DB.Test:
+            from .test.config import TestConfig
+
+            return TestConfig
+
+        if self == DB.Vespa:
+            from .vespa.config import VespaConfig
+
+            return VespaConfig
+
+        if self == DB.LanceDB:
+            from .lancedb.config import LanceDBConfig
+
+            return LanceDBConfig
+
+        if self == DB.S3Vectors:
+            from .s3_vectors.config import S3VectorsConfig
+
+            return S3VectorsConfig
+
+        if self == DB.Hologres:
+            from .hologres.config import HologresConfig
+
+            return HologresConfig
+
         msg = f"Unknown DB: {self.name}"
         raise ValueError(msg)
 
-    def case_config_cls(  # noqa: PLR0911
+    def case_config_cls(  # noqa: C901, PLR0911, PLR0912
         self,
         index_type: IndexType | None = None,
     ) -> type[DBCaseConfig]:
@@ -261,6 +392,11 @@ class DB(Enum):
 
             return QdrantIndexConfig
 
+        if self == DB.QdrantLocal:
+            from .qdrant_local.config import QdrantLocalIndexConfig
+
+            return QdrantLocalIndexConfig
+
         if self == DB.WeaviateCloud:
             from .weaviate_cloud.config import WeaviateIndexConfig
 
@@ -280,6 +416,16 @@ class DB(Enum):
             from .aws_opensearch.config import AWSOpenSearchIndexConfig
 
             return AWSOpenSearchIndexConfig
+
+        if self == DB.OSSOpenSearch:
+            from .oss_opensearch.config import OSSOpenSearchIndexConfig
+
+            return OSSOpenSearchIndexConfig
+
+        if self == DB.Clickhouse:
+            from .clickhouse.config import ClickhouseHNSWConfig
+
+            return ClickhouseHNSWConfig
 
         if self == DB.PgVectorScale:
             from .pgvectorscale.config import _pgvectorscale_case_config
@@ -305,6 +451,45 @@ class DB(Enum):
             from .aliyun_opensearch.config import AliyunOpenSearchIndexConfig
 
             return AliyunOpenSearchIndexConfig
+
+        if self == DB.MongoDB:
+            from .mongodb.config import MongoDBIndexConfig
+
+            return MongoDBIndexConfig
+
+        if self == DB.OceanBase:
+            from .oceanbase.config import _oceanbase_case_config
+
+            return _oceanbase_case_config.get(index_type)
+
+        if self == DB.MariaDB:
+            from .mariadb.config import _mariadb_case_config
+
+            return _mariadb_case_config.get(index_type)
+
+        if self == DB.TiDB:
+            from .tidb.config import TiDBIndexConfig
+
+            return TiDBIndexConfig
+
+        if self == DB.Vespa:
+            from .vespa.config import VespaHNSWConfig
+
+            return VespaHNSWConfig
+
+        if self == DB.LanceDB:
+            from .lancedb.config import _lancedb_case_config
+
+            return _lancedb_case_config.get(index_type)
+
+        if self == DB.S3Vectors:
+            from .s3_vectors.config import S3VectorsIndexConfig
+
+            return S3VectorsIndexConfig
+        if self == DB.Hologres:
+            from .hologres.config import HologresIndexConfig
+
+            return HologresIndexConfig
 
         # DB.Pinecone, DB.Chroma, DB.Redis
         return EmptyDBCaseConfig

@@ -57,10 +57,7 @@ class ChromaClient(VectorDB):
     def ready_to_search(self) -> bool:
         pass
 
-    def ready_to_load(self) -> bool:
-        pass
-
-    def optimize(self) -> None:
+    def optimize(self, data_size: int | None = None):
         pass
 
     def insert_embeddings(
@@ -68,7 +65,7 @@ class ChromaClient(VectorDB):
         embeddings: list[list[float]],
         metadata: list[int],
         **kwargs: Any,
-    ) -> (int, Exception):
+    ) -> tuple[int, Exception]:
         """Insert embeddings into the database.
 
         Args:
@@ -77,12 +74,16 @@ class ChromaClient(VectorDB):
             kwargs: other arguments
 
         Returns:
-            (int, Exception): number of embeddings inserted and exception if any
+            tuple[int, Exception]: number of embeddings inserted and exception if any
         """
         ids = [str(i) for i in metadata]
         metadata = [{"id": int(i)} for i in metadata]
-        if len(embeddings) > 0:
-            self.collection.add(embeddings=embeddings, ids=ids, metadatas=metadata)
+        try:
+            if len(embeddings) > 0:
+                self.collection.add(embeddings=embeddings, ids=ids, metadatas=metadata)
+        except Exception as e:
+            log.warning(f"Failed to insert data: error: {e!s}")
+            return 0, e
         return len(embeddings), None
 
     def search_embedding(

@@ -4,6 +4,8 @@ from enum import Enum
 
 from pydantic import BaseModel, SecretStr, validator
 
+from vectordb_bench.backend.filter import Filter, FilterOp
+
 
 class MetricType(str, Enum):
     L2 = "L2"
@@ -16,18 +18,39 @@ class MetricType(str, Enum):
 
 class IndexType(str, Enum):
     HNSW = "HNSW"
+    HNSW_SQ = "HNSW_SQ"
+    HNSW_BQ = "HNSW_BQ"
+    HNSW_PQ = "HNSW_PQ"
+    HNSW_PRQ = "HNSW_PRQ"
     DISKANN = "DISKANN"
     STREAMING_DISKANN = "DISKANN"
     IVFFlat = "IVF_FLAT"
+    IVFPQ = "IVF_PQ"
     IVFSQ8 = "IVF_SQ8"
+    IVF_RABITQ = "IVF_RABITQ"
     Flat = "FLAT"
     AUTOINDEX = "AUTOINDEX"
     ES_HNSW = "hnsw"
+    ES_HNSW_INT8 = "int8_hnsw"
+    ES_HNSW_INT4 = "int4_hnsw"
+    ES_HNSW_BBQ = "bbq_hnsw"
     ES_IVFFlat = "ivfflat"
     GPU_IVF_FLAT = "GPU_IVF_FLAT"
+    GPU_BRUTE_FORCE = "GPU_BRUTE_FORCE"
     GPU_IVF_PQ = "GPU_IVF_PQ"
     GPU_CAGRA = "GPU_CAGRA"
     SCANN = "scann"
+    Hologres_HGraph = "HGraph"
+    Hologres_Graph = "Graph"
+    NONE = "NONE"
+
+
+class SQType(str, Enum):
+    SQ6 = "SQ6"
+    SQ8 = "SQ8"
+    BF16 = "BF16"
+    FP16 = "FP16"
+    FP32 = "FP32"
 
 
 class DBConfig(ABC, BaseModel):
@@ -110,6 +133,22 @@ class VectorDB(ABC):
         >>>     milvus.search_embedding()
     """
 
+    "The filtering types supported by the VectorDB Client, default only non-filter"
+    supported_filter_types: list[FilterOp] = [FilterOp.NonFilter]
+    name: str = ""
+
+    @classmethod
+    def filter_supported(cls, filters: Filter) -> bool:
+        """Ensure that the filters are supported before testing filtering cases."""
+        return filters.type in cls.supported_filter_types
+
+    def prepare_filter(self, filters: Filter):
+        """The vector database is allowed to pre-prepare different filter conditions
+        to reduce redundancy during the testing process.
+
+        (All search tests in a case use consistent filtering conditions.)"""
+        return
+
     @abstractmethod
     def __init__(
         self,
@@ -137,6 +176,13 @@ class VectorDB(ABC):
     @contextmanager
     def init(self) -> None:
         """create and destory connections to database.
+        Why contextmanager:
+
+            In multiprocessing search tasks, vectordbbench might init
+            totally hundreds of thousands of connections with DB server.
+
+            Too many connections may drain local FDs or server connection resources.
+            If the DB client doesn't have `close()` method, just set the object to None.
 
         Examples:
             >>> with self.init():
@@ -153,8 +199,9 @@ class VectorDB(ABC):
         self,
         embeddings: list[list[float]],
         metadata: list[int],
+        labels_data: list[str] | None = None,
         **kwargs,
-    ) -> (int, Exception):
+    ) -> tuple[int, Exception]:
         """Insert the embeddings to the vector database. The default number of embeddings for
         each insert_embeddings is 5000.
 
@@ -173,7 +220,6 @@ class VectorDB(ABC):
         self,
         query: list[float],
         k: int = 100,
-        filters: dict | None = None,
     ) -> list[int]:
         """Get k most similar embeddings to query vector.
 
@@ -187,9 +233,8 @@ class VectorDB(ABC):
         """
         raise NotImplementedError
 
-    # TODO: remove
     @abstractmethod
-    def optimize(self):
+    def optimize(self, data_size: int | None = None):
         """optimize will be called between insertion and search in performance cases.
 
         Should be blocked until the vectorDB is ready to be tested on
@@ -197,18 +242,5 @@ class VectorDB(ABC):
 
         Time(insert the dataset) + Time(optimize) will be recorded as "load_duration" metric
         Optimize's execution time is limited, the limited time is based on cases.
-        """
-        raise NotImplementedError
-
-    def optimize_with_size(self, data_size: int):
-        self.optimize()
-
-    # TODO: remove
-    @abstractmethod
-    def ready_to_load(self):
-        """ready_to_load will be called before load in load cases.
-
-        Should be blocked until the vectorDB is ready to be tested on
-        heavy load cases.
         """
         raise NotImplementedError
