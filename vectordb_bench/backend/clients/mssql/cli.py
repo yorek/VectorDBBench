@@ -47,8 +47,6 @@ def MSSQL(**parameters: Unpack[MSSQLTypedDict]):
             pwd=parameters["pwd"],
             entraid=parameters["entraid"]
         ),
-        db_case_config=MSSQLVectorIndexConfig(
-
-        ),
+        db_case_config=MSSQLVectorIndexConfig(),
         **parameters,
     )

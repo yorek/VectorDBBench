@@ -7,6 +7,7 @@ import time
 from datetime import datetime
 
 from ..api import VectorDB, DBCaseConfig
+from vectordb_bench.backend.filter import Filter, FilterOp
 
 import pyodbc
 import json
@@ -21,6 +22,13 @@ SQL_COPT_SS_ACCESS_TOKEN = 1256
 SQL_SERVER_TOKEN_SCOPE = "https://database.windows.net/.default"
 
 class MSSQL(VectorDB):    
+    
+    supported_filter_types: list[FilterOp] = [
+        FilterOp.NonFilter,
+        FilterOp.NumGE,
+        FilterOp.StrEqual,
+    ]
+        
     def __init__(
         self,
         dim: int,
@@ -146,7 +154,19 @@ class MSSQL(VectorDB):
     def ready_to_search(self):
         log.info(f"MSSQL ready to search")
         pass
-    
+
+
+    def prepare_filter(self, filters: Filter):
+        if filters.type == FilterOp.NonFilter:
+            self.where_clause = ""
+        elif filters.type == FilterOp.NumGE:
+            self.where_clause = f"where {self._primary_field} >= {filters.int_value}"
+        elif filters.type == FilterOp.StrEqual:
+            self.where_clause = f"where {self._scalar_label_field} = '{filters.label_value}'"
+        else:
+            msg = f"Not support Filter for MSSQL - {filters}"
+            raise ValueError(msg)
+
     def insert_embeddings(
         self,
         embeddings: list[list[float]],
@@ -174,55 +194,33 @@ class MSSQL(VectorDB):
     def search_embedding(        
         self,
         query: list[float],
-        k: int = 100,
-        filters: dict | None = None,
+        k: int = 100,        
         timeout: int | None = None,
     ) -> list[int]:        
         search_param = self.case_config.search_param()
         metric_function = search_param["metric"]
         #efSearch = search_param["efSearch"]
         cursor = self.cursor
-        if filters:
-            # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v where v.id >= ? order by vector_distance(?, cast(? as varchar({self.dim})), v.[vector])
-            cursor.execute(f"""        
-                declare @v vector({self.dim}) = ?;  
-                select 
-                    t.id
-                from
-                    vector_search(
-                        table = [{self.schema_name}].[{self.table_name}] AS t, 
-                        column = [vector], 
-                        similar_to = @v,
-                        metric = '{metric_function}', 
-                        top_n = ?
-                    ) AS s
-                where
-                    v.id >= ?                
-                """, 
-                json.dumps(query),                      
-                k,                    
-                int(filters.get('id')),                                  
-                )
-        else:
-            # select top(?) v.id from [{self.schema_name}].[{self.table_name}] v order by vector_distance(?, cast(? as vector({self.dim})), v.[vector]) 
-            cursor.execute(f"""
-                declare @v vector({self.dim}) = ?;        
-                select 
-                    t.id
-                from
-                    vector_search(
-                        table = [{self.schema_name}].[{self.table_name}] AS t, 
-                        column = [vector], 
-                        similar_to = @v,
-                        metric = '{metric_function}', 
-                        top_n = ?
-                    ) AS s
-                order by
-                    t.id   
-                """, 
-                json.dumps(query),      
-                k,                                                      
-                )
+
+        cursor.execute(f"""
+            declare @v vector({self.dim}) = ?;        
+            select 
+                t.id
+            from
+                vector_search(
+                    table = [{self.schema_name}].[{self.table_name}] AS t, 
+                    column = [vector], 
+                    similar_to = @v,
+                    metric = '{metric_function}', 
+                    top_n = ?
+                ) AS s
+            {self.where_clause}
+            order by
+                t.id   
+            """, 
+            json.dumps(query),      
+            k,                                                      
+        )
         rows = cursor.fetchall()
         res = [row.id for row in rows]
         return res
