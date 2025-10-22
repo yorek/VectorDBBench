@@ -8,18 +8,14 @@ from datetime import datetime
 import multiprocessing as mp
 import threading
 import os
-import tempfile
+import json
+import pyodbc
+import struct
+import azure.identity
+from filelock import FileLock
 
 from ..api import VectorDB, DBCaseConfig
 from vectordb_bench.backend.filter import Filter, FilterOp
-
-import pyodbc
-import json
-
-import struct
-import azure.identity
-
-from filelock import FileLock
 
 log = logging.getLogger(__name__) 
 
@@ -34,6 +30,12 @@ class MSSQL(VectorDB):
     _token_cache_path = os.path.join(_cache_dir, "mssql_token_cache.json")
     _file_lock = None
     _thread_lock = threading.Lock()  # For thread safety within a process
+
+    supported_filter_types: list[FilterOp] = [
+        FilterOp.NonFilter,
+        FilterOp.NumGE,
+        FilterOp.StrEqual,
+    ]
     
     @classmethod
     def _ensure_cache_dir(cls):
@@ -89,12 +91,6 @@ class MSSQL(VectorDB):
             log.debug(f"[Process {mp.current_process().name}] Saved token to cache, expires at {datetime.fromtimestamp(expires_on).strftime('%Y-%m-%d %H:%M:%S')}")
         except Exception as e:
             log.warning(f"Failed to save token to cache: {e}")
-
-    supported_filter_types: list[FilterOp] = [
-        FilterOp.NonFilter,
-        FilterOp.NumGE,
-        FilterOp.StrEqual,
-    ]
 
     def __init__(
         self,
