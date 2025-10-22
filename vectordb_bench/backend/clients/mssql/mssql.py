@@ -2,9 +2,13 @@
 
 import logging
 from contextlib import contextmanager
-from typing import Any, Generator, Optional, Tuple, Sequence
+from typing import Any, Generator, Optional, Tuple
 import time
 from datetime import datetime
+import multiprocessing as mp
+import threading
+import os
+import tempfile
 
 from ..api import VectorDB, DBCaseConfig
 from vectordb_bench.backend.filter import Filter, FilterOp
@@ -13,7 +17,9 @@ import pyodbc
 import json
 
 import struct
-import azure.identity 
+import azure.identity
+
+from filelock import FileLock
 
 log = logging.getLogger(__name__) 
 
@@ -21,14 +27,75 @@ log = logging.getLogger(__name__)
 SQL_COPT_SS_ACCESS_TOKEN = 1256 
 SQL_SERVER_TOKEN_SCOPE = "https://database.windows.net/.default"
 
-class MSSQL(VectorDB):    
+class MSSQL(VectorDB):
+    # Use a file-based lock for cross-process synchronization in user's home directory
+    _cache_dir = os.path.join(os.path.expanduser("~"), ".vectordbbench")
+    _lock_file_path = os.path.join(_cache_dir, "mssql_token_refresh.lock")
+    _token_cache_path = os.path.join(_cache_dir, "mssql_token_cache.json")
+    _file_lock = None
+    _thread_lock = threading.Lock()  # For thread safety within a process
     
+    @classmethod
+    def _ensure_cache_dir(cls):
+        """Ensure the cache directory exists."""
+        if not os.path.exists(cls._cache_dir):
+            try:
+                os.makedirs(cls._cache_dir, mode=0o700)  # Create with restricted permissions
+                log.debug(f"Created cache directory: {cls._cache_dir}")
+            except Exception as e:
+                log.warning(f"Failed to create cache directory: {e}")
+    
+    @classmethod
+    def _get_file_lock(cls):
+        """Get or create the file lock instance."""
+        if cls._file_lock is None:
+            cls._ensure_cache_dir()
+            cls._file_lock = FileLock(cls._lock_file_path, timeout=30)
+        return cls._file_lock
+    
+    @classmethod
+    def _load_token_from_cache(cls):
+        """Load token and expiration time from cache file."""
+        try:
+            if os.path.exists(cls._token_cache_path):
+                with open(cls._token_cache_path, 'r') as f:
+                    cache_data = json.load(f)
+                    token = cache_data.get('token')
+                    expires_on = cache_data.get('expires_on')
+                    if token and expires_on:
+                        log.debug(f"[Process {mp.current_process().name}] Loaded token from cache, expires at {datetime.fromtimestamp(expires_on).strftime('%Y-%m-%d %H:%M:%S')}")
+                        return token, expires_on
+        except Exception as e:
+            log.warning(f"Failed to load token from cache: {e}")
+        return None, None
+    
+    @classmethod
+    def _save_token_to_cache(cls, token: str, expires_on: float):
+        """Save token and expiration time to cache file."""
+        try:
+            cls._ensure_cache_dir()
+            cache_data = {
+                'token': token,
+                'expires_on': expires_on
+            }
+            # Write to temporary file first, then rename for atomic operation
+            temp_path = cls._token_cache_path + '.tmp'
+            with open(temp_path, 'w') as f:
+                json.dump(cache_data, f)
+            # Set restrictive permissions on the cache file (owner read/write only)
+            os.chmod(temp_path, 0o600)
+            # Atomic rename
+            os.replace(temp_path, cls._token_cache_path)
+            log.debug(f"[Process {mp.current_process().name}] Saved token to cache, expires at {datetime.fromtimestamp(expires_on).strftime('%Y-%m-%d %H:%M:%S')}")
+        except Exception as e:
+            log.warning(f"Failed to save token to cache: {e}")
+
     supported_filter_types: list[FilterOp] = [
         FilterOp.NonFilter,
         FilterOp.NumGE,
         FilterOp.StrEqual,
     ]
-        
+
     def __init__(
         self,
         dim: int,
@@ -44,7 +111,6 @@ class MSSQL(VectorDB):
         self.dim = dim
         self.schema_name = "benchmark"
         self.drop_old = drop_old
-        self.access_token = None
 
         log.info("db_case_config: " + str(db_case_config))
 
@@ -69,7 +135,7 @@ class MSSQL(VectorDB):
             cnxn.commit()
 
 
-        log.info(f"Creating vector table '[{self.schema_name}].[{self.table_name}]'...")
+        log.info(f"Creating vector table '[{self.schema_name}].[{self.table_name}]' if not already there...")
         cursor.execute(f""" 
             if object_id('[{self.schema_name}].[{self.table_name}]') is null begin
                 create table [{self.schema_name}].[{self.table_name}] (
@@ -157,7 +223,7 @@ class MSSQL(VectorDB):
 
 
     def prepare_filter(self, filters: Filter):
-        log.info(f"Preparing filters: {filters}")
+        #log.debug(f"Preparing filters: {filters}")
         if filters.type == FilterOp.NonFilter:
             self.where_clause = ""
         elif filters.type == FilterOp.NumGE:
@@ -236,39 +302,58 @@ class MSSQL(VectorDB):
             return cnxn
         
         # --- Case 2: Entra ID Managed Identity (Manual Token Auth) ---
-       
-        # check if token exists and if it expires within the next hour (or is already expired)
-        if self.access_token is not None:
-            remaining_seconds = self.access_token.expires_on - time.time()
-            if remaining_seconds < 300:  # expires within 5 minutes or already expired
-                expiration_datetime = datetime.fromtimestamp(self.access_token.expires_on)
-                if remaining_seconds <= 0:
-                    log.info(f"Token expired on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} ({abs(remaining_seconds):.0f} seconds ago), acquiring a new one.")
-                else:
-                    log.info(f"Token expires on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} (in {remaining_seconds:.0f} seconds), acquiring a new one.")
-                self.access_token = None
-    
-        if self.access_token is None:
-            log.info(f"Acquiring token for authentication...")
+        
+        # Thread-level lock first (for threads within the same process)
+        with self._thread_lock:
+            # Then file-level lock (for processes) - cross-platform
+            file_lock = self._get_file_lock()
+            
+            with file_lock:
+                token_str = self._refresh_token_if_needed(authentication)
 
-            if authentication == "AzureCLICredential":
-                log.info("Using Azure CLI Credentials for authentication.")
-                credential = azure.identity.AzureCliCredential()
-
-            if authentication == "ManagedIdentityCredential":
-                log.info(f"Using Managed Identity Credential with client_id: {self.db_config.get('principal')}")
-                credential = azure.identity.ManagedIdentityCredential(client_id=self.db_config.get("principal"))
-    
-            access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
-            log.info("Token acquired successfully.")
-
-            self.access_token = access_token
-
-        token_bytes = self.access_token.token.encode("UTF-16-LE")
+        token_bytes = token_str.encode("UTF-16-LE")
         token_struct = struct.pack(f'<I{len(token_bytes)}s', len(token_bytes), token_bytes)
 
         cnxn = pyodbc.connect(
             self.db_config.get("connection_string"),
             attrs_before={SQL_COPT_SS_ACCESS_TOKEN: token_struct}
         )
-        return cnxn 
+        return cnxn
+    
+    def _refresh_token_if_needed(self, authentication: str) -> str:
+        """Check and refresh the access token if needed. Returns the token string."""
+        # First, try to load from cache
+        cached_token, cached_expires_on = self._load_token_from_cache()
+        
+        # Check if cached token is valid and not expiring soon
+        if cached_token and cached_expires_on:
+            remaining_seconds = cached_expires_on - time.time()
+            if remaining_seconds >= 300:  # Token has at least 5 minutes left
+                log.debug(f"[Process {mp.current_process().name}] Using cached token, {remaining_seconds:.0f} seconds remaining")
+                return cached_token
+            else:
+                # Token is expiring soon or already expired
+                expiration_datetime = datetime.fromtimestamp(cached_expires_on)
+                if remaining_seconds <= 0:
+                    log.info(f"[Process {mp.current_process().name}] Cached token expired on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} ({abs(remaining_seconds):.0f} seconds ago), acquiring a new one.")
+                else:
+                    log.info(f"[Process {mp.current_process().name}] Cached token expires on {expiration_datetime.strftime('%Y-%m-%d %H:%M:%S')} (in {remaining_seconds:.0f} seconds), acquiring a new one.")
+        
+        # Need to acquire a new token
+        log.info(f"[Process {mp.current_process().name}] Acquiring token for authentication...")
+
+        if authentication == "AzureCLICredential":
+            log.info("Using Azure CLI Credentials for authentication.")
+            credential = azure.identity.AzureCliCredential()
+
+        if authentication == "ManagedIdentityCredential":
+            log.info(f"Using Managed Identity Credential with client_id: {self.db_config.get('principal')}")
+            credential = azure.identity.ManagedIdentityCredential(client_id=self.db_config.get("principal"))
+
+        access_token = credential.get_token(SQL_SERVER_TOKEN_SCOPE)
+        log.info(f"[Process {mp.current_process().name}] Token acquired successfully, expires at {datetime.fromtimestamp(access_token.expires_on).strftime('%Y-%m-%d %H:%M:%S')}")
+
+        # Save to cache for other processes to use
+        self._save_token_to_cache(access_token.token, access_token.expires_on)
+        
+        return access_token.token 

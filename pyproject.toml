@@ -75,7 +75,8 @@ all = [
     "lancedb",
     "mysql-connector-python",
     "pyodbc",
-    "azure-identity"
+    "azure-identity",
+    "filelock"
 ]
 
 qdrant          = [ "qdrant-client" ]
