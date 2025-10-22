@@ -157,12 +157,11 @@ class MSSQL(VectorDB):
 
 
     def prepare_filter(self, filters: Filter):
+        log.info(f"Preparing filters: {filters}")
         if filters.type == FilterOp.NonFilter:
             self.where_clause = ""
         elif filters.type == FilterOp.NumGE:
-            self.where_clause = f"where {self._primary_field} >= {filters.int_value}"
-        elif filters.type == FilterOp.StrEqual:
-            self.where_clause = f"where {self._scalar_label_field} = '{filters.label_value}'"
+            self.where_clause = f"where id >= {filters.int_value}"
         else:
             msg = f"Not support Filter for MSSQL - {filters}"
             raise ValueError(msg)
