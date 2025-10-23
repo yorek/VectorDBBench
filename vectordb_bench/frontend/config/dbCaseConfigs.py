@@ -1547,13 +1547,13 @@ CaseConfigParamInput_CacheSize_MariaDB = CaseConfigInput(
     },
     isDisplayed=lambda config: config.get(CaseConfigParamType.IndexType, None) == IndexType.HNSW.value,
 )
+
 CaseConfigParamInput_Milvus_use_partition_key = CaseConfigInput(
     label=CaseConfigParamType.use_partition_key,
     inputType=InputType.Option,
     inputHelp="whether to use partition_key for label-filter cases. only works in label-filter cases",
     inputConfig={"options": [False, True]},
 )
-
 
 CaseConfigParamInput_MongoDBQuantizationType = CaseConfigInput(
     label=CaseConfigParamType.mongodb_quantization_type,
@@ -1562,7 +1562,6 @@ CaseConfigParamInput_MongoDBQuantizationType = CaseConfigInput(
         "options": ["none", "scalar", "binary"],
     },
 )
-
 
 CaseConfigParamInput_MongoDBNumCandidatesRatio = CaseConfigInput(
     label=CaseConfigParamType.mongodb_num_candidates_ratio,
@@ -1573,7 +1572,6 @@ CaseConfigParamInput_MongoDBNumCandidatesRatio = CaseConfigInput(
         "value": 10,
     },
 )
-
 
 CaseConfigParamInput_M_Vespa = CaseConfigInput(
     label=CaseConfigParamType.M,
@@ -1703,6 +1701,40 @@ CaseConfigParamInput_REFRESH_INTERVAL_AWSOpensearch = CaseConfigInput(
     inputHelp="How often to make new data searchable. (e.g., 30s, 1m).",
     inputType=InputType.Text,
     inputConfig={"value": "60s", "placeholder": "e.g. 30s, 1m"},
+)
+
+
+CaseConfigParamInput_IndexType_MSSQL = CaseConfigInput(
+    label=CaseConfigParamType.IndexType,
+    inputHelp="Select Index Type",
+    inputType=InputType.Option,
+    inputConfig={
+        "options": [
+            IndexType.DISKANN.value,
+        ],
+    },
+)
+
+CaseConfigParamInput_R_MSSQL = CaseConfigInput(
+    label=CaseConfigParamType.R,
+    inputHelp="R parameter in DiskANN vector indexing",
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 1000,
+        "value": 0,
+    }
+)
+
+CaseConfigParamInput_L_MSSQL = CaseConfigInput(
+    label=CaseConfigParamType.L,
+    inputHelp="L parameter in DiskANN vector indexing",
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 1000,
+        "value": 0,
+    }
 )
 
 MilvusLoadConfig = [
@@ -1953,6 +1985,17 @@ VespaLoadingConfig = [
 ]
 VespaPerformanceConfig = VespaLoadingConfig
 
+MSSQLLoadingConfig = [
+    CaseConfigParamInput_IndexType_MSSQL,
+    CaseConfigParamInput_R_MSSQL,
+    CaseConfigParamInput_L_MSSQL,
+]
+MSSQLPerformanceConfig = [
+    CaseConfigParamInput_IndexType_MSSQL,
+    CaseConfigParamInput_R_MSSQL,
+    CaseConfigParamInput_L_MSSQL,
+]
+
 CaseConfigParamInput_IndexType_LanceDB = CaseConfigInput(
     label=CaseConfigParamType.IndexType,
     inputHelp="AUTOINDEX = IVFPQ with default parameters",
@@ -2170,6 +2213,10 @@ CASE_CONFIG_MAP = {
     DB.LanceDB: {
         CaseLabel.Load: LanceDBLoadConfig,
         CaseLabel.Performance: LanceDBPerformanceConfig,
+    },
+    DB.MSSQL: {
+        CaseLabel.Load: MSSQLLoadingConfig,
+        CaseLabel.Performance: MSSQLPerformanceConfig,
     },
 }
 

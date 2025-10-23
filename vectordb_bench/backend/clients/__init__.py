@@ -369,8 +369,8 @@ class DB(Enum):
     ) -> type[DBCaseConfig]:
         
         if self == DB.MSSQL:
-            from .mssql.config import MSSQLVectorIndexConfig
-            return MSSQLVectorIndexConfig
+            from .mssql.config import _mssql_case_config
+            return _mssql_case_config.get(index_type)
         
         if self == DB.Milvus:
             from .milvus.config import _milvus_case_config
@@ -486,6 +486,7 @@ class DB(Enum):
             from .s3_vectors.config import S3VectorsIndexConfig
 
             return S3VectorsIndexConfig
+        
         if self == DB.Hologres:
             from .hologres.config import HologresIndexConfig
 

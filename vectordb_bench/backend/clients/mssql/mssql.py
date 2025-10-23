@@ -196,9 +196,14 @@ class MSSQL(VectorDB):
 
     def optimize(self, data_size: int):       
         log.info(f"MSSQL optimize")
-        search_param = self.case_config.search_param()
-        metric_function = search_param["metric"]
+        index_param = self.case_config.index_param()
+        metric_function =  index_param["metric"]
+        R = index_param["R"] 
+        L = index_param["L"] 
+        log.info(f"Index params: metric={metric_function}, R={R}, L={L}")
+
         cursor = self.cursor
+        
         if self.drop_old:
             cursor.execute(f"""            
                 if exists(select * from sys.indexes where object_id = object_id('[{self.schema_name}].[{self.table_name}]') and type=8)
@@ -208,8 +213,12 @@ class MSSQL(VectorDB):
                 """, 
                 )
         
+        index_options = ""
+        if (R>0) and (L>0):
+            index_options = f", R={R}, L={L}"
+
         cursor.execute(f"""            
-            create vector index vec_idx on [{self.schema_name}].[{self.table_name}]([vector]) with (metric = '{metric_function}', type = 'DiskANN'); 
+            create vector index vec_idx on [{self.schema_name}].[{self.table_name}]([vector]) with (metric = '{metric_function}', type = 'DiskANN' {index_options}); 
             """                
             )
 
@@ -260,7 +269,6 @@ class MSSQL(VectorDB):
     ) -> list[int]:        
         search_param = self.case_config.search_param()
         metric_function = search_param["metric"]
-        #efSearch = search_param["efSearch"]
         cursor = self.cursor
 
         cursor.execute(f"""

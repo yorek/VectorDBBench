@@ -1,7 +1,7 @@
 import logging
 from pydantic import BaseModel, SecretStr, validator
 from typing import Optional
-from ..api import DBConfig, DBCaseConfig, MetricType
+from ..api import DBCaseConfig, DBConfig, IndexType, MetricType
 
 log = logging.getLogger(__name__)
 
@@ -77,25 +77,41 @@ class MSSQLConfig(DBConfig):
         return v
 
 
-class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
+class MSSQLVectorIndexConfig(BaseModel):
     metric_type: MetricType | None = None
-    efSearch: int | None = 48
 
     def parse_metric(self) -> str: 
         if self.metric_type == MetricType.L2:
             return "euclidean"
         elif self.metric_type == MetricType.IP:
             return "dot"
-        return "cosine"
+        elif self.metric_type == MetricType.COSINE:
+            return "cosine"
+
+        msg = f"Metric type {self.metric_type} is not supported!"
+        raise ValueError(msg)
     
+class MSSQLDISKANNVectorIndexConfig(MSSQLVectorIndexConfig, DBCaseConfig):
+    R: int
+    L: int
+    index: IndexType = IndexType.DISKANN
+
     def index_param(self) -> dict:
         return {
-            "lists" : self.lists,
-            "metric" : self.parse_metric()
+            "metric": self.parse_metric(),
+            "index": self.index.value,
+            "R": self.R,
+            "L": self.L,
         }
-    
+
     def search_param(self) -> dict:
         return {
-            "efSearch" : self.efSearch,
-            "metric" : self.parse_metric()
+            "metric": self.parse_metric(),                        
+            "index": self.index.value,
+            "R": self.R,
+            "L": self.L,
         }
+
+_mssql_case_config = {
+    IndexType.DISKANN: MSSQLDISKANNVectorIndexConfig,
+}
