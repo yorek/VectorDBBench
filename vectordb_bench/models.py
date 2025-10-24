@@ -47,6 +47,7 @@ class CaseConfigParamType(Enum):
     M = "M"
     R = "R"
     L = "L"
+    MAXDOP = "MAXDOP"
     EFConstruction = "efConstruction"
     ef_construction = "ef_construction"
     EF = "ef"

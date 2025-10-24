@@ -1737,6 +1737,17 @@ CaseConfigParamInput_L_MSSQL = CaseConfigInput(
     }
 )
 
+CaseConfigParamInput_MAXDOP_MSSQL = CaseConfigInput(
+    label=CaseConfigParamType.MAXDOP,
+    inputHelp="MAXDOP parameter in DiskANN vector indexing",
+    inputType=InputType.Number,
+    inputConfig={
+        "min": 0,
+        "max": 1024,
+        "value": 0,
+    }
+)
+
 MilvusLoadConfig = [
     CaseConfigParamInput_IndexType,
     CaseConfigParamInput_M,
@@ -1989,11 +2000,13 @@ MSSQLLoadingConfig = [
     CaseConfigParamInput_IndexType_MSSQL,
     CaseConfigParamInput_R_MSSQL,
     CaseConfigParamInput_L_MSSQL,
+    CaseConfigParamInput_MAXDOP_MSSQL,
 ]
 MSSQLPerformanceConfig = [
     CaseConfigParamInput_IndexType_MSSQL,
     CaseConfigParamInput_R_MSSQL,
     CaseConfigParamInput_L_MSSQL,
+    CaseConfigParamInput_MAXDOP_MSSQL,
 ]
 
 CaseConfigParamInput_IndexType_LanceDB = CaseConfigInput(

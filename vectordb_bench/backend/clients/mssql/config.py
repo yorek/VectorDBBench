@@ -1,4 +1,5 @@
 import logging
+from abc import abstractmethod
 from pydantic import BaseModel, SecretStr, validator
 from typing import Optional
 from ..api import DBCaseConfig, DBConfig, IndexType, MetricType
@@ -77,7 +78,7 @@ class MSSQLConfig(DBConfig):
         return v
 
 
-class MSSQLVectorIndexConfig(BaseModel):
+class MSSQLVectorIndexConfig(BaseModel, DBCaseConfig):
     metric_type: MetricType | None = None
 
     def parse_metric(self) -> str: 
@@ -90,10 +91,17 @@ class MSSQLVectorIndexConfig(BaseModel):
 
         msg = f"Metric type {self.metric_type} is not supported!"
         raise ValueError(msg)
+
+    @abstractmethod
+    def index_param(self) -> dict: ...
+
+    @abstractmethod
+    def search_param(self) -> dict: ...
     
-class MSSQLDISKANNVectorIndexConfig(MSSQLVectorIndexConfig, DBCaseConfig):
-    R: int
-    L: int
+class MSSQLDISKANNVectorIndexConfig(MSSQLVectorIndexConfig):
+    R: int 
+    L: int 
+    MAXDOP: int
     index: IndexType = IndexType.DISKANN
 
     def index_param(self) -> dict:
@@ -102,6 +110,7 @@ class MSSQLDISKANNVectorIndexConfig(MSSQLVectorIndexConfig, DBCaseConfig):
             "index": self.index.value,
             "R": self.R,
             "L": self.L,
+            "MAXDOP": self.MAXDOP,
         }
 
     def search_param(self) -> dict:
@@ -110,6 +119,7 @@ class MSSQLDISKANNVectorIndexConfig(MSSQLVectorIndexConfig, DBCaseConfig):
             "index": self.index.value,
             "R": self.R,
             "L": self.L,
+            "MAXDOP": self.MAXDOP,
         }
 
 _mssql_case_config = {
